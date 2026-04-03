@@ -1,0 +1,3 @@
+﻿<template>
+  <NuxtPage keepalive />
+</template>

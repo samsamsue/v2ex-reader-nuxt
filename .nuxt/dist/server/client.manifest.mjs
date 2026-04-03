@@ -1,0 +1,4 @@
+
+import { viteNodeFetch } from "file:///C:/Users/Administrator/Documents/XCode/v2/node_modules/.store/@nuxt+vite-builder@3.21.2/node_modules/@nuxt/vite-builder/dist/vite-node.mjs"
+export default () => viteNodeFetch.getManifest()
+    
