@@ -1,4 +1,4 @@
-import { c as defineEventHandler } from '../../_/nitro.mjs';
+import { d as defineEventHandler } from '../../_/nitro.mjs';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import 'node:http';

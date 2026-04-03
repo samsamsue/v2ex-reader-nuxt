@@ -3020,6 +3020,9 @@ const decodeShare = (code) => {
   }
 };
 async function safeFetch(url, env) {
+  if (env.V2_COOKIE && /[^\x00-\xFF]/.test(env.V2_COOKIE)) {
+    throw new Error("V2_COOKIE_INVALID_ENCODING");
+  }
   const resp = await fetch(url, {
     dispatcher: PROXY_AGENT || void 0,
     headers: {
