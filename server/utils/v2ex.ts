@@ -58,8 +58,14 @@ export const decodeShare = (code: string) => {
 }
 
 export async function safeFetch(url: string, env: { V2_COOKIE: string }) {
-  if (env.V2_COOKIE && /[^\x00-\xFF]/.test(env.V2_COOKIE)) {
-    throw new Error('V2_COOKIE_INVALID_ENCODING')
+  let safeCookie = env.V2_COOKIE || ''
+  if (safeCookie) {
+    safeCookie = safeCookie.replace(/^Cookie:\s*/i, '').trim()
+    const cleaned = safeCookie.replace(/[^\x00-\xFF]/g, '')
+    if (cleaned !== safeCookie) {
+      console.warn('[V2EX] V2_COOKIE contained non-ASCII chars; sanitized.')
+      safeCookie = cleaned
+    }
   }
   const resp = await fetch(url, {
     dispatcher: PROXY_AGENT || undefined,
@@ -70,7 +76,7 @@ export async function safeFetch(url: string, env: { V2_COOKIE: string }) {
         'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       Referer: 'https://www.v2ex.com/',
-      Cookie: env.V2_COOKIE || '',
+      Cookie: safeCookie || '',
       'Cache-Control': 'max-age=0'
     }
   })

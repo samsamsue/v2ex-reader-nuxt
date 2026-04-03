@@ -2149,7 +2149,22 @@ _1etyPQVhtq5_yiaHkzeoVw4AGqOJf8ttF0GbRaFlEw,
 _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 ];
 
-const assets = {};
+const assets = {
+  "/index.mjs": {
+    "type": "text/javascript; charset=utf-8",
+    "etag": "\"1f063-CPyV+X04EJ5ckZyLvpr1V/lXCV8\"",
+    "mtime": "2026-04-03T09:54:20.781Z",
+    "size": 127075,
+    "path": "index.mjs"
+  },
+  "/index.mjs.map": {
+    "type": "application/json",
+    "etag": "\"7a0eb-Gv89nklXRA+drwS27un9Sgk7Pno\"",
+    "mtime": "2026-04-03T09:54:20.781Z",
+    "size": 499947,
+    "path": "index.mjs.map"
+  }
+};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -3020,8 +3035,14 @@ const decodeShare = (code) => {
   }
 };
 async function safeFetch(url, env) {
-  if (env.V2_COOKIE && /[^\x00-\xFF]/.test(env.V2_COOKIE)) {
-    throw new Error("V2_COOKIE_INVALID_ENCODING");
+  let safeCookie = env.V2_COOKIE || "";
+  if (safeCookie) {
+    safeCookie = safeCookie.replace(/^Cookie:\s*/i, "").trim();
+    const cleaned = safeCookie.replace(/[^\x00-\xFF]/g, "");
+    if (cleaned !== safeCookie) {
+      console.warn("[V2EX] V2_COOKIE contained non-ASCII chars; sanitized.");
+      safeCookie = cleaned;
+    }
   }
   const resp = await fetch(url, {
     dispatcher: PROXY_AGENT || void 0,
@@ -3030,7 +3051,7 @@ async function safeFetch(url, env) {
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
       "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
       Referer: "https://www.v2ex.com/",
-      Cookie: env.V2_COOKIE || "",
+      Cookie: safeCookie || "",
       "Cache-Control": "max-age=0"
     }
   });
