@@ -1,6 +1,6 @@
 import { d as defineEventHandler, g as getCookie, s as setResponseStatus, c as getRouterParam } from '../../../_/nitro.mjs';
 import MarkdownIt from 'markdown-it';
-import { a as COOKIE_VALUE, s as safeFetch, E as ENV, e as extractTopicContentHtml, c as buildSubtleBlocks, A as ADMIN_PASS, C as COOKIE_NAME } from '../../../_/v2ex.mjs';
+import { a as COOKIE_VALUE, s as safeFetch, E as ENV, c as extractTopicContentHtml, d as buildSubtleBlocks, A as ADMIN_PASS, C as COOKIE_NAME } from '../../../_/v2ex.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:events';

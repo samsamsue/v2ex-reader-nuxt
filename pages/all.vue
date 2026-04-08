@@ -1,34 +1,74 @@
 ﻿<template>
-  <div>
+  <div class="page-container">
     <LoginBox v-if="needLogin" :from="fromPath" />
+    
     <template v-else>
-      <div v-html="codeModeHtml"></div>
-      <div id="mainContent">
+      <Transition name="fade">
+        <div v-if="isModeCode" id="codeMode" @dblclick="toggleCodeMode">
+          <div class="code-header">Infrastructure/Network/LoadBalancer.php</div>
+          <div v-for="(line, index) in codeLines" :key="index">
+            <span class="code-ln">{{ index + 1 }}</span>
+            <span :class="line.class" v-html="line.content"></span>
+          </div>
+          <div v-for="(log, idx) in dynamicLogs" :key="'log-'+idx">
+            <span class="code-ln">{{ codeLines.length + idx + 1 }}</span>
+            <span class="code-c">{{ log }}</span>
+          </div>
+        </div>
+      </Transition>
+
+      <div id="mainContent" v-show="!isModeCode" @dblclick="toggleCodeMode">
         <div class="fab-group">
-          <div class="fab" @click="scrollTop">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+          <div class="fab" @click="openNotif" style="position:relative;" title="消息提醒">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
+            <div v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</div>
           </div>
-          <div class="fab" @click="reload">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
-          </div>
+          <div class="fab" @click="scrollTop"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></div>
+          <div class="fab" @click="reload"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></div>
         </div>
 
         <div id="list">
           <div v-if="loading" class="list-skeleton">
-            <div class="skeleton-line w-80"></div>
-            <div class="skeleton-line w-60"></div>
-            <div class="skeleton-line w-90"></div>
-            <div class="skeleton-line w-70"></div>
-            <div class="skeleton-line w-50"></div>
+            <div v-for="i in 5" :key="i" :class="['skeleton-line', `w-${40 + i*10}`]"></div>
           </div>
-          <div v-for="item in items" :key="item.code" class="item" :id="`item_${item.code}`">
+          
+          <div v-for="item in items" :key="item.code" class="item" :id="`item_${item.code}`" :class="{ 'flash-highlight': lastViewedCode === item.code }">
             <NuxtLink :to="`/t/${item.code}`" @click="saveLastViewed(item.code)">{{ item.title }}</NuxtLink>
             <div class="meta">@{{ item.author }} • {{ item.time }} • {{ item.replies }}回复</div>
           </div>
         </div>
 
-        <div id="loader" ref="loaderEl" style="padding:40px;text-align:center;color:var(--meta);font-size:0.9rem;">
-          {{ loaderText }}
+        <div id="loader" ref="loaderEl" class="loader-text">{{ loaderText }}</div>
+      </div>
+
+      <div id="notifOverlay" :class="{ open: showNotif }" @click="showNotif = false"></div>
+      <div id="notifModal" :class="{ open: showNotif }">
+        <div class="notif-header">
+          <h3>最新提醒</h3>
+          <button class="close-btn" @click="showNotif = false" aria-label="关闭">&times;</button>
+        </div>
+        
+        <div v-if="notifLoading" class="notif-state">
+          <p>正在获取消息...</p>
+        </div>
+        
+        <div v-else-if="notifs.length === 0" class="notif-state">
+          <p>暂无新消息</p>
+        </div>
+
+        <div v-else class="notif-list">
+          <div v-for="n in notifs" :key="n.id" class="notif-item" @click="goToTopic(n.encodedId)">
+            <div class="notif-body">
+              <div class="notif-title">{{ n.desc }}</div>
+              <div class="notif-meta">
+                <span class="time">{{ n.time }}</span>
+              </div>
+              <div v-if="n.payload" class="notif-payload" v-html="n.payload"></div>
+            </div>
+            <div class="notif-arrow">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+            </div>
+          </div>
         </div>
       </div>
     </template>
@@ -36,34 +76,87 @@
 </template>
 
 <script setup lang="ts">
+/** 1. 基础状态 */
 const route = useRoute()
-const fromPath = computed(() => route.fullPath || '/all')
-
 const needLogin = ref(false)
-const items = ref<Array<{ code: string; title: string; author: string; replies: string; time: string }>>([])
-const count = ref<number>(0)
-const currentPage = ref<number>(parseInt(String(route.query.p || 0)))
-const loaderText = ref('加载中...')
-const loaderEl = ref<HTMLElement | null>(null)
+const items = ref<any[]>([])
 const loading = ref(true)
-const canLoadMore = ref(false)
-let initOnce = false
-let userScrolled = false
+const lastViewedCode = ref<string | null>(null)
 
-const scrollTop = () => window.scrollTo({ top: 0 })
-const reload = () => window.location.reload()
-const saveLastViewed = (code: string) => sessionStorage.setItem('v2_last_code', code)
+/** 2. 程序员模式 (Code Mode) */
+const isModeCode = ref(false)
+const dynamicLogs = ref<string[]>([])
+const codeLines = [
+  { class: 'code-k', content: '&lt;?php' },
+  { class: '', content: '<span class="code-k">namespace</span> App\\Infrastructure\\Network;' },
+  { class: '', content: '' },
+  { class: '', content: '<span class="code-k">class</span> <span class="code-v">LoadBalancer</span> {' },
+  { class: '', content: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-k">private</span> <span class="code-v">$nodes</span> = [];' }
+]
+
+const toggleCodeMode = () => {
+  isModeCode.value = !isModeCode.value
+  document.body.style.overflow = isModeCode.value ? 'hidden' : ''
+  if (isModeCode.value) {
+    dynamicLogs.value = Array.from({ length: 100 }, () => 
+      `// LOG: Syncing with distributed shard 0x${Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase()}... OK`
+    )
+  }
+}
+
+/** 3. 消息提醒逻辑 */
+const showNotif = ref(false)
+const unreadCount = ref(0)
+const notifs = ref<any[]>([])
+const notifLoading = ref(false)
+
+// 监听抽屉状态：锁定滚动条并处理防抖宽度
+watch(showNotif, (val) => {
+  if (process.client) {
+    if (val) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth}px`);
+      document.body.classList.add('lock-scroll');
+    } else {
+      document.body.classList.remove('lock-scroll');
+    }
+  }
+});
+
+const openNotif = async () => {
+  showNotif.value = true
+  notifLoading.value = true
+  unreadCount.value = 0
+  stopBlink()
+  try {
+    const res: any = await $fetch('/api/notif')
+    notifs.value = res?.items || []
+  } catch (e) {
+    console.error('Failed to fetch notifications')
+  } finally {
+    notifLoading.value = false
+  }
+}
+
+/** 4. 数据加载与高亮逻辑 */
+const currentPage = ref(parseInt(String(route.query.p || 0)))
+const canLoadMore = ref(false)
+const loaderEl = ref<HTMLElement | null>(null)
+const loaderText = ref('加载中...')
+
 const checkHighlight = () => {
-  document.querySelectorAll('.flash-highlight').forEach((el) => el.classList.remove('flash-highlight'))
   const lastCode = sessionStorage.getItem('v2_last_code')
   if (lastCode) {
-    const el = document.getElementById('item_' + lastCode)
-    if (el) {
-      el.classList.remove('flash-highlight')
-      void (el as HTMLElement).offsetWidth
-      el.classList.add('flash-highlight')
-      sessionStorage.removeItem('v2_last_code')
-    }
+    lastViewedCode.value = lastCode
+    nextTick(() => {
+      const el = document.getElementById('item_' + lastCode)
+      if (el) {
+        el.classList.remove('flash-highlight')
+        void el.offsetWidth // 触发重绘
+        el.classList.add('flash-highlight')
+        sessionStorage.removeItem('v2_last_code')
+      }
+    });
   }
 }
 
@@ -75,237 +168,142 @@ const fetchPage = async (p: number) => {
       return null
     }
     return res
-  } catch {
-    return null
+  } catch { return null }
+}
+
+const loadMore = async () => {
+  if (!canLoadMore.value) return
+  currentPage.value++
+  const res = await fetchPage(currentPage.value)
+  if (res?.items?.length) {
+    items.value.push(...res.items)
+  } else {
+    loaderText.value = '到底了'
+    canLoadMore.value = false
   }
 }
 
-const codeModeHtml = `
-<div id="codeMode">
-  <div style="margin-bottom:15px; color:var(--code-k); border-bottom:1px solid var(--border); padding-bottom:5px; font-weight:bold;">Infrastructure/Network/LoadBalancer.php</div>
-  <div><span class="code-ln">1</span><span class="code-k">&lt;?php</span></div>
-  <div><span class="code-ln">2</span><span class="code-k">namespace</span> App\\Infrastructure\\Network;</div>
-  <div><span class="code-ln">3</span></div>
-  <div><span class="code-ln">4</span><span class="code-k">class</span> <span class="code-v">LoadBalancer</span> {</div>
-  <div><span class="code-ln">5</span>    <span class="code-k">private</span> <span class="code-v">$nodes</span> = [];</div>
-  <div><span class="code-ln">6</span>    <span class="code-k">private</span> <span class="code-v">$healthyNodes</span> = [];</div>
-  <div><span class="code-ln">7</span></div>
-  <div><span class="code-ln">8</span>    <span class="code-k">public function</span> <span class="code-v">__construct</span>(<span class="code-k">array</span> <span class="code-v">$config</span>) {</div>
-  <div><span class="code-ln">9</span>        <span class="code-v">$this</span>-><span class="code-v">nodes</span> = <span class="code-v">$config</span>[<span class="code-s">'cluster_endpoints'</span>];</div>
-  <div><span class="code-ln">10</span>        <span class="code-v">$this</span>-><span class="code-v">checkHealth</span>();</div>
-  <div><span class="code-ln">11</span>    }</div>
-  <div><span class="code-ln">12</span></div>
-  <div><span class="code-ln">13</span>    <span class="code-k">private function</span> <span class="code-v">checkHealth</span>() {</div>
-  <div><span class="code-ln">14</span>        <span class="code-k">foreach</span> (<span class="code-v">$this</span>-><span class="code-v">nodes</span> <span class="code-k">as</span> <span class="code-v">$node</span>) {</div>
-  <div><span class="code-ln">15</span>            <span class="code-v">$status</span> = <span class="code-v">curl_init</span>(<span class="code-v">$node</span> . <span class="code-s">'/health'</span>);</div>
-  <div><span class="code-ln">16</span>            <span class="code-k">if</span> (<span class="code-v">curl_exec</span>(<span class="code-v">$status</span>)) {</div>
-  <div><span class="code-ln">17</span>                <span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>[] = <span class="code-v">$node</span>;</div>
-  <div><span class="code-ln">18</span>            }</div>
-  <div><span class="code-ln">19</span>        }</div>
-  <div><span class="code-ln">20</span>    }</div>
-  <div><span class="code-ln">21</span></div>
-  <div><span class="code-ln">22</span>    <span class="code-k">public function</span> <span class="code-v">getNextNode</span>() {</div>
-  <div><span class="code-ln">23</span>        <span class="code-k">return</span> <span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>[<span class="code-v">array_rand</span>(<span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>)];</div>
-  <div><span class="code-ln">24</span>    }</div>
-  <div><span class="code-ln">25</span>}</div>
-  <div><span class="code-ln">26</span></div>
-  <div><span class="code-ln">27</span><span class="code-c">// --- Node.js Event Loop Monitor ---</span></div>
-  <div><span class="code-ln">28</span><span class="code-k">const</span> <span class="code-v">os</span> = <span class="code-k">require</span>(<span class="code-s">'os'</span>);</div>
-  <div><span class="code-ln">29</span><span class="code-k">const</span> <span class="code-v">v8</span> = <span class="code-k">require</span>(<span class="code-s">'v8'</span>);</div>
-  <div><span class="code-ln">30</span></div>
-  <div><span class="code-ln">31</span><span class="code-k">setInterval</span>(() => {</div>
-  <div><span class="code-ln">32</span>    <span class="code-k">const</span> <span class="code-v">mem</span> = <span class="code-v">process</span>.<span class="code-v">memoryUsage</span>();</div>
-  <div><span class="code-ln">33</span>    <span class="code-k">if</span> (<span class="code-v">mem</span>.heapUsed > <span class="code-v">mem</span>.heapTotal * <span class="code-v">0.8</span>) {</div>
-  <div><span class="code-ln">34</span>        <span class="code-v">console</span>.<span class="code-v">warn</span>(<span class="code-s">'[GC_WARN] Heap usage near limit'</span>);</div>
-  <div><span class="code-ln">35</span>        <span class="code-v">v8</span>.<span class="code-v">setFlagsFromString</span>(<span class="code-s">'--expose-gc'</span>);</div>
-  <div><span class="code-ln">36</span>        <span class="code-k">global</span>.<span class="code-v">gc</span> && <span class="code-k">global</span>.<span class="code-v">gc</span>();</div>
-  <div><span class="code-ln">37</span>    }</div>
-  <div><span class="code-ln">38</span>}, <span class="code-v">10000</span>);</div>
-  <div><span class="code-ln">39</span></div>
-  <div><span class="code-ln">40</span><span class="code-k">function</span> <span class="code-v">syncStream</span>(<span class="code-v">buffer</span>) {</div>
-  <div><span class="code-ln">41</span>    <span class="code-k">return</span> <span class="code-k">new</span> <span class="code-v">Promise</span>((<span class="code-v">resolve</span>) => {</div>
-  <div><span class="code-ln">42</span>        <span class="code-v">setTimeout</span>(() => {</div>
-  <div><span class="code-ln">43</span>            <span class="code-v">console</span>.<span class="code-v">log</span>(<span class="code-s">'Stream synced successfully'</span>);</div>
-  <div><span class="code-ln">44</span>            <span class="code-v">resolve</span>(<span class="code-k">true</span>);</div>
-  <div><span class="code-ln">45</span>        }, <span class="code-v">500</span>);</div>
-  <div><span class="code-ln">46</span>    });</div>
-  <div><span class="code-ln">47</span>}</div>
-  <div><span class="code-ln">48</span></div>
-  <div><span class="code-ln">49</span><span class="code-c">// INFO: Listening on port 8080</span></div>
-  <div><span class="code-ln">50</span><span class="code-c">// LOG: Handshaking with internal node... OK</span></div>
-  <div><span class="code-ln">51</span><span class="code-c">// [REPEATED LOG BLOCKS FOR SCROLL DEPTH]</span></div>
-  <div><span class="code-ln">52</span><span class="code-c">// 2026-03-31 10:45:01 Processing packet 0xAB21</span></div>
-  <div><span class="code-ln">53</span><span class="code-c">// 2026-03-31 10:45:02 Processing packet 0xAB22</span></div>
-  <div><span class="code-ln">54</span><span class="code-c">// 2026-03-31 10:45:03 Processing packet 0xAB23</span></div>
-  <div><span class="code-ln">55</span><span class="code-c">// ... (代码将持续滚动直至 150 行)</span></div>
-  <div id="extraCode"></div>
-</div>
-`
+/** 5. 工具函数 */
+const fromPath = computed(() => route.fullPath || '/all')
+const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+const reload = () => window.location.reload()
+const saveLastViewed = (code: string) => sessionStorage.setItem('v2_last_code', code)
+const goToTopic = (id: string) => {
+  showNotif.value = false
+  navigateTo(`/t/${id}`)
+}
 
-const SHARED_JS = `
-const SCROLL_KEY = 'v2_floor_pos';
-window.saveFloor = function(id, floorId) {
-  let data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}');
-  data[id] = { f: floorId, t: Date.now() };
-  const keys = Object.keys(data);
-  if (keys.length > 100) {
-    const oldest = keys.sort((a, b) => data[a].t - data[b].t)[0];
-    delete data[oldest];
-  }
-  localStorage.setItem(SCROLL_KEY, JSON.stringify(data));
-};
-window.getFloor = function(id) {
-  const data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}');
-  return data[id] ? data[id].f : null;
-};
-window.removeFloor = function(id) {
-  let data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}');
-  if (data[id]) {
-    delete data[id];
-    localStorage.setItem(SCROLL_KEY, JSON.stringify(data));
-  }
-};
-window.jumpToFloor = function(e, id) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  const el = document.getElementById('c_' + id);
-  if (el) {
-    window.scrollTo({top: el.offsetTop - 80});
-    el.classList.remove('flash-highlight');
-    void el.offsetWidth; 
-    el.classList.add('flash-highlight');
-  } else {
-    const notify = document.getElementById('newMsgNotify');
-    if (notify) {
-      const oldText = notify.innerText;
-      notify.innerText = "该楼层暂未加载或已不存在";
-      notify.classList.add('show');
-      setTimeout(() => { notify.classList.remove('show'); setTimeout(() => notify.innerText = oldText, 500); }, 2000);
+/** 6. 辅助逻辑 */
+let favInterval: any = null
+const startBlink = () => {
+  if (favInterval) return
+  favInterval = setInterval(() => {}, 800)
+}
+const stopBlink = () => {
+  clearInterval(favInterval); favInterval = null
+}
+
+const checkUnread = async () => {
+  try {
+    const res: any = await $fetch('/api/notif/count')
+    if (res.count > unreadCount.value) {
+      unreadCount.value = res.count
+      startBlink()
     }
-  }
-};
-let lastScrollY = 0; window.isModeCode = false;
-window.ondblclick = (e) => {
-  if (e.target.closest('.fab')) return;
-  const cm = document.getElementById('codeMode');
-  const mc = document.getElementById('mainContent');
-  const html = document.documentElement;
-  window.isModeCode = !window.isModeCode;
-  if (window.isModeCode) {
-    let extra = ''; for(let i=56; i<160; i++) extra += '<div><span class="code-ln">'+i+'</span><span class="code-c">// LOG: Syncing with distributed shard 0x' + (Math.random()*0xFFFF<<0).toString(16).toUpperCase() + '... OK</span></div>';
-    document.getElementById('extraCode').innerHTML = extra;
-    lastScrollY = window.scrollY; html.style.scrollBehavior = 'auto';
-    cm.style.display = 'block'; if(mc) mc.style.display = 'none';
-    document.body.style.overflow = 'hidden'; cm.scrollTop = 200 + Math.random()*300;
-  } else {
-    cm.style.display = 'none'; if(mc) mc.style.display = 'block';
-    document.body.style.overflow = ''; window.scrollTo(0, lastScrollY);
-    setTimeout(() => { html.style.scrollBehavior = 'auto'; }, 50);
-  }
-};
-let normalFav, alertFav, favInterval=null;
-function drawFavicons(){
-  const c=document.createElement('canvas');c.width=32;c.height=32;const x=c.getContext('2d');
-  x.fillStyle='#1d2129';x.fillRect(0,0,32,32);x.fillStyle='#fff';x.font='bold 22px sans-serif';x.fillText('V',8,24);
-  normalFav=c.toDataURL();
-  x.beginPath();x.arc(25,7,7,0,Math.PI*2);x.fillStyle='#ff2c55';x.fill();
-  x.strokeStyle='#fff';x.lineWidth=2;x.stroke();
-  alertFav=c.toDataURL();
-  let link = document.querySelector("link[rel*='icon']") || document.createElement('link');
-  link.type='image/x-icon'; link.rel='shortcut icon'; link.href=normalFav;
-  document.getElementsByTagName('head')[0].appendChild(link);
+  } catch {}
 }
-function startBlink(){ if(favInterval)return; let s=0; favInterval=setInterval(()=>{ document.querySelector("link[rel*='icon']").href=(s%2===0)?alertFav:normalFav; s++; },800); }
-function stopBlink(){ if(favInterval){clearInterval(favInterval);favInterval=null;} document.querySelector("link[rel*='icon']").href=normalFav; }
-window.startBlink = startBlink; window.stopBlink = stopBlink; window.drawFavicons = drawFavicons;
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible')stopBlink(); });
-`
 
-useHead({
-  title: 'V2EX Reader',
-  script: [{ children: SHARED_JS, tagPosition: 'bodyClose' }]
-})
-
+/** 7. 生命周期与后退监听 */
 onMounted(async () => {
-  if (initOnce) return
-  initOnce = true
-  ;(window as any).drawFavicons?.()
-
-  window.addEventListener('scroll', () => { userScrolled = true }, { once: true })
-
   const initial = await fetchPage(currentPage.value)
   if (initial?.items) {
     items.value = initial.items
-    count.value = initial.count || 0
   }
   loading.value = false
 
   checkHighlight()
 
-  const observer = new IntersectionObserver(
-    async (entries) => {
-      if (!entries[0].isIntersecting) return
-      if (!canLoadMore.value || !userScrolled) return
-      currentPage.value += 1
-      const res = await fetchPage(currentPage.value)
-      if (res?.items?.length) {
-        items.value.push(...res.items)
-      } else {
-        loaderText.value = '到底了'
-        observer.disconnect()
-      }
-    },
-    { rootMargin: '100px' }
-  )
+  // 监听浏览器后退时的 bfcache
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) checkHighlight()
+  })
 
+  const observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && canLoadMore.value) loadMore()
+  }, { rootMargin: '200px' })
   if (loaderEl.value) observer.observe(loaderEl.value)
 
-  setTimeout(() => { canLoadMore.value = true }, 1200)
-
-  const poll = async () => {
-    if ((window as any).isModeCode || document.visibilityState === 'hidden') {
-      setTimeout(poll, 10000)
-      return
-    }
-    try {
-      const res: any = await fetchPage(0)
-      if (res?.count > count.value) {
-        ;(window as any).startBlink?.()
-      }
-      if (typeof res?.count === 'number') count.value = res.count
-    } catch {}
-    setTimeout(poll, 60000 + Math.random() * 30000)
-  }
-
-  setTimeout(poll, 60000)
-
-  window.addEventListener('pageshow', (e) => {
-    if ((e as any).persisted) checkHighlight()
-  })
+  setTimeout(() => { canLoadMore.value = true }, 1500)
+  setInterval(checkUnread, 60000)
 })
 
+// 处理 Nuxt 路由后退时的激活
 onActivated(() => {
   checkHighlight()
 })
+
+useHead({ title: 'V2EX Reader' })
 </script>
 
-<style>
-:root { --bg:#fff; --text:#1d2129; --author:#999; --meta:#86909c; --border:#f2f3f5; --fab-bg:rgba(245,245,247,0.7); --input-bg:#f9fafb; --code-k:#0000ff; --code-v:#001080; --code-s:#a31515; --code-c:#008000; --code-ln:#858585; }
-@media (prefers-color-scheme:dark) { :root { --bg:#1a1a1c; --text:#e1e1e1; --author:#aaa; --meta:#777; --border:#2d2d2e; --fab-bg:rgba(45,45,46,0.7); --input-bg:#252526; --code-k:#569cd6; --code-v:#9cdcfe; --code-s:#ce9178; --code-c:#6a9955; } }
-html { scroll-behavior: auto; }
-body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; transition: background 0.3s; margin:0; min-height: 100vh;width:100vw;overflow-x:hidden;  }
-#mainContent { width: 650px; max-width:100%; margin: 0 auto; padding: 20px; overflow-wrap: break-word; word-break: break-word; overflow: visible; box-sizing: border-box; }
-.item{padding:20px 0;border-bottom:1px solid var(--border);}a{text-decoration:none;color:var(--text);font-size:1.05rem;}.meta{font-size:0.8rem;color:var(--meta);margin-top:6px;}
-.fab-group { position:fixed; top:50%; transform: translateY(-50%) ; left:calc(50% + 325px + 1rem); display:flex; flex-direction:column; gap:12px; z-index:100; }
-@media (max-width: 800px) { .fab-group {display:none;  } }
-.fab { width:48px; height:48px; background:var(--fab-bg); color:var(--text); border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1); transition:all 0.3s; }
-#codeMode { display:none; position:fixed; top:0; left:0; width:100%; height:100vh; background:var(--bg); color:var(--text); font-family:'Consolas','Monaco',monospace; font-size:13px; line-height:1.5; padding:20px; box-sizing:border-box; overflow-y:auto; z-index:9999; }
-.code-ln { color:var(--code-ln); margin-right:15px; user-select:none; display:inline-block; width:25px; text-align:right;}
-.code-k { color:var(--code-k); font-weight:bold; } .code-v { color:var(--code-v); } .code-s { color:var(--code-s); } .code-c { color:var(--code-c); }
-@keyframes highlight-fade { 0% { background: rgba(255, 235, 59, 0.4); } 100% { background: transparent; } }
-.flash-highlight { animation: highlight-fade 3s ease-out; }
-.loading{color:var(--meta);padding:20px 0;text-align:center;}
-.list-skeleton{padding:20px 0;}
-.skeleton-line{height:14px;border-radius:8px;background:linear-gradient(90deg, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.12) 37%, rgba(0,0,0,0.05) 63%);background-size:400% 100%;animation:skeleton 1.4s ease infinite;margin:12px 0;}
-.w-90{width:90%}.w-80{width:80%}.w-70{width:70%}.w-60{width:60%}.w-50{width:50%}
-@keyframes skeleton{0%{background-position:100% 0}100%{background-position:0 0}}
+<style scoped>
+.page-container {
+  --bg:#fff; --text:#1d2129; --author:#999; --meta:#86909c; --border:#f2f3f5; 
+  --fab-bg:rgba(245,245,247,0.7); --input-bg:#f9fafb;
+}
+@media (prefers-color-scheme:dark) {
+  .page-container { --bg:#1a1a1c; --text:#e1e1e1; --border:#2d2d2e; --fab-bg:rgba(45,45,46,0.7); --input-bg:#252526; }
+}
+
+/* 锁定滚动条：使用 padding 防止抖动 */
+:global(body.lock-scroll) {
+  overflow: hidden !important;
+  padding-right: var(--scrollbar-width, 0px);
+}
+
+#mainContent { width: 650px; max-width:100%; margin: 0 auto; padding: 20px; }
+.item { padding:20px 0; border-bottom:1px solid var(--border); transition: background 0.3s; }
+.item > a { text-decoration: none; color:inherit; font-size: 1.05rem; }
+.meta { color:var(--meta); font-size:0.8rem; margin-top: 6px; }
+
+.fab-group { position:fixed; top:50%; transform: translateY(-50%) ; left:calc(50% + 340px); display:flex; flex-direction:column; gap:12px; z-index:100; transition: margin-right 0.3s; }
+:global(body.lock-scroll) .fab-group { margin-right: var(--scrollbar-width, 0px); }
+@media (max-width: 850px) { .fab-group { display:none; } }
+
+.fab { width:48px; height:48px; background:var(--fab-bg); border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1); }
+
+/* Code Mode Styles */
+#codeMode { position:fixed; top:0; left:0; width:100%; height:100vh; background:#1e1e1e; color:#d4d4d4; font-family:monospace; padding:20px; overflow-y:auto; z-index:9999; }
+.code-header { color:#6a9955; margin-bottom:15px; border-bottom:1px solid #333; }
+.code-ln { color:#858585; margin-right:15px; width:25px; display:inline-block; text-align:right; }
+.code-k { color:#569cd6; } .code-v { color:#9cdcfe; } .code-s { color:#ce9178; } .code-c { color:#6a9955; }
+
+/* Transitions & Highlight */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.flash-highlight { animation: highlight-fade 3s forwards; }
+@keyframes highlight-fade { 
+  0% { background: rgba(255, 235, 59, 0.3); }
+  100% { background: transparent; } 
+}
+
+/* Notif Drawer */
+#notifModal {
+  position: fixed; top: 0; right: -100%; width: 100%; max-width: 420px; height: 100vh;
+  background: var(--bg); z-index: 2000; transition: right 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  border-left: 1px solid var(--border); display: flex; flex-direction: column; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+}
+#notifModal.open { right: 0; }
+#notifOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 1999; backdrop-filter: blur(2px); }
+#notifOverlay.open { opacity: 1; pointer-events: auto; }
+
+.notif-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.notif-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: var(--meta); }
+.notif-item { display: flex; align-items: flex-start; padding: 16px 20px; gap: 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.notif-item:hover { background: var(--input-bg); }
+.notif-body { flex: 1; min-width: 0; }
+.notif-title { font-size: 0.95rem; font-weight: 500; line-height: 1.5; margin-bottom: 4px; }
+.notif-payload { margin-top: 10px; padding: 10px 14px; background: var(--input-bg); border-radius: 6px; font-size: 0.88rem; border-left: 3px solid var(--border); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.badge { position: absolute; top: -2px; right: -2px; background: #ff2c55; color: white; font-size: 10px; padding: 2px 5px; border-radius: 10px; border: 2px solid var(--bg); }
+.close-btn { background: none; border: none; font-size: 28px; color: var(--meta); cursor: pointer; }
 </style>

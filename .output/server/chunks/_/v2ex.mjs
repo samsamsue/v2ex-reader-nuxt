@@ -50,8 +50,14 @@ const decodeShare = (code) => {
   }
 };
 async function safeFetch(url, env) {
-  if (env.V2_COOKIE && /[^\x00-\xFF]/.test(env.V2_COOKIE)) {
-    throw new Error("V2_COOKIE_INVALID_ENCODING");
+  let safeCookie = env.V2_COOKIE || "";
+  if (safeCookie) {
+    safeCookie = safeCookie.replace(/^Cookie:\s*/i, "").trim();
+    const cleaned = safeCookie.replace(/[^\x00-\xFF]/g, "");
+    if (cleaned !== safeCookie) {
+      console.warn("[V2EX] V2_COOKIE contained non-ASCII chars; sanitized.");
+      safeCookie = cleaned;
+    }
   }
   const resp = await fetch(url, {
     dispatcher: PROXY_AGENT || void 0,
@@ -60,8 +66,9 @@ async function safeFetch(url, env) {
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
       "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
       Referer: "https://www.v2ex.com/",
-      Cookie: env.V2_COOKIE || "",
-      "Cache-Control": "max-age=0"
+      Cookie: safeCookie || "",
+      "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+      Pragma: "no-cache"
     }
   });
   if (resp.status === 403) throw new Error("V2EX_FORBIDDEN_403");
@@ -193,5 +200,5 @@ function extractTopicContentHtml(firstHtml) {
   return match ? match[1] : "";
 }
 
-export { ADMIN_PASS as A, COOKIE_NAME as C, ENV as E, COOKIE_VALUE as a, fetchAndParsePostFull as b, buildSubtleBlocks as c, decodeShare as d, extractTopicContentHtml as e, fetchAndParseList as f, decodeId as g, safeFetch as s };
+export { ADMIN_PASS as A, COOKIE_NAME as C, ENV as E, COOKIE_VALUE as a, fetchAndParsePostFull as b, extractTopicContentHtml as c, buildSubtleBlocks as d, encodeId as e, fetchAndParseList as f, decodeShare as g, decodeId as h, safeFetch as s };
 //# sourceMappingURL=v2ex.mjs.map

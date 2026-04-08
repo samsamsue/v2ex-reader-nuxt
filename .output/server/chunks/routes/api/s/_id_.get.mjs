@@ -1,5 +1,5 @@
 import { d as defineEventHandler, c as getRouterParam, s as setResponseStatus } from '../../../_/nitro.mjs';
-import { d as decodeShare, b as fetchAndParsePostFull, E as ENV } from '../../../_/v2ex.mjs';
+import { g as decodeShare, b as fetchAndParsePostFull, E as ENV } from '../../../_/v2ex.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:events';

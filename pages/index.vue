@@ -79,6 +79,9 @@ const codeModeHtml = `
 `
 
 const SHARED_JS = `
+(function(){
+if (window.__v2_shared_loaded) return;
+window.__v2_shared_loaded = true;
 const SCROLL_KEY = 'v2_floor_pos';
 window.saveFloor = function(id, floorId) {
   let data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}');
@@ -156,35 +159,54 @@ function drawFavicons(){
 function startBlink(){ if(favInterval)return; let s=0; favInterval=setInterval(()=>{ document.querySelector("link[rel*='icon']").href=(s%2===0)?alertFav:normalFav; s++; },800); }
 function stopBlink(){ if(favInterval){clearInterval(favInterval);favInterval=null;} document.querySelector("link[rel*='icon']").href=normalFav; }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible')stopBlink(); });
+})();
 `
 
-useHead({
-  title: 'V2EX Reader',
-  script: [
-    {
-      children: `${SHARED_JS}
-      drawFavicons(); const input = document.getElementById('vUrl'); const prompt = document.getElementById('jumpPrompt');
-      window.onfocus = async () => {
-        try { const text = await navigator.clipboard.readText(); const m = text.match(/t\\/(\\d+)/);
-          if(m) { input.value = text; prompt.classList.add('show'); document.getElementById('jumpBtn').onclick=()=>location.href="/t/"+(parseInt(m[1])^${SALT}).toString(36); }
-        } catch(e){}
-      };
-      window.manualJump = () => {
-        const val = input.value.trim();
-        if (!val) return;
-        const m = val.match(/t\\/(\\d+)/) || val.match(/^(\\d+)$/);
-        if (m) {
-          location.href = "/t/" + (parseInt(m[1]) ^ ${SALT}).toString(36);
-        } else {
-          input.style.borderColor = '#ff2c55';
-          setTimeout(() => input.style.borderColor = 'var(--border)', 800);
-        }
-      };
-      input.addEventListener('keypress', function (e) { if (e.key === 'Enter') { manualJump(); } });
-      `,
-      tagPosition: 'bodyClose'
+useHead({ title: 'V2EX Reader' })
+
+onMounted(() => {
+  try {
+    if (!(window as any).__v2_shared_loaded) {
+      const runShared = new Function(SHARED_JS)
+      runShared()
     }
-  ]
+  } catch {}
+  ;(window as any).drawFavicons?.()
+
+  const input = document.getElementById('vUrl') as HTMLInputElement | null
+  const prompt = document.getElementById('jumpPrompt')
+  if (!input || !prompt) return
+
+  window.onfocus = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      const m = text.match(/t\/(\d+)/)
+      if (m) {
+        input.value = text
+        prompt.classList.add('show')
+        const btn = document.getElementById('jumpBtn')
+        if (btn) btn.onclick = () => (location.href = '/t/' + (parseInt(m[1]) ^ SALT).toString(36))
+      }
+    } catch {}
+  }
+
+  ;(window as any).manualJump = () => {
+    const val = input.value.trim()
+    if (!val) return
+    const m = val.match(/t\/(\d+)/) || val.match(/^(\d+)$/)
+    if (m) {
+      location.href = '/t/' + (parseInt(m[1]) ^ SALT).toString(36)
+    } else {
+      input.style.borderColor = '#ff2c55'
+      setTimeout(() => (input.style.borderColor = 'var(--border)'), 800)
+    }
+  }
+
+  input.addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') {
+      ;(window as any).manualJump?.()
+    }
+  })
 })
 </script>
 

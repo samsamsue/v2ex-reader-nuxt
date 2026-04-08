@@ -77,7 +77,8 @@ export async function safeFetch(url: string, env: { V2_COOKIE: string }) {
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       Referer: 'https://www.v2ex.com/',
       Cookie: safeCookie || '',
-      'Cache-Control': 'max-age=0'
+      'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+      Pragma: 'no-cache'
     }
   })
 

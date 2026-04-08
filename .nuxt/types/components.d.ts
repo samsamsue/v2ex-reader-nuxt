@@ -16,6 +16,7 @@ type LazyComponent<T> = DefineComponent<HydrationStrategies, {}, {}, {}, {}, {},
 interface _GlobalComponents {
   CommentTree: typeof import("../../components/CommentTree.vue")['default']
   LoginBox: typeof import("../../components/LoginBox.vue")['default']
+  TopicPage: typeof import("../../components/TopicPage.vue")['default']
   NuxtWelcome: typeof import("../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/components/welcome.vue")['default']
   NuxtLayout: typeof import("../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/components/nuxt-layout")['default']
   NuxtErrorBoundary: typeof import("../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/components/nuxt-error-boundary.vue")['default']
@@ -41,6 +42,7 @@ interface _GlobalComponents {
   NuxtIsland: typeof import("../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/components/nuxt-island")['default']
   LazyCommentTree: LazyComponent<typeof import("../../components/CommentTree.vue")['default']>
   LazyLoginBox: LazyComponent<typeof import("../../components/LoginBox.vue")['default']>
+  LazyTopicPage: LazyComponent<typeof import("../../components/TopicPage.vue")['default']>
   LazyNuxtWelcome: LazyComponent<typeof import("../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/components/welcome.vue")['default']>
   LazyNuxtLayout: LazyComponent<typeof import("../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/components/nuxt-layout")['default']>
   LazyNuxtErrorBoundary: LazyComponent<typeof import("../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/components/nuxt-error-boundary.vue")['default']>
