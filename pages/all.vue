@@ -81,6 +81,7 @@
 
 <script setup lang="ts">
 import { lockScroll, unLockScroll } from '../utils/common'
+
 /** 1. 基础状态 */
 const route = useRoute()
 const needLogin = ref(false)
@@ -122,7 +123,7 @@ const notifLoading = ref(false)
 // 监听抽屉状态：锁定滚动条并处理防抖宽度
 watch(showNotif, (val) => {
   if (process.client) {
-    val? lockScroll('notif') : unLockScroll('notif')
+    val ? lockScroll('notif') : unLockScroll('notif')
   }
 });
 
@@ -144,6 +145,7 @@ const openNotif = async () => {
 /** 4. 数据加载与高亮逻辑 */
 const currentPage = ref(parseInt(String(route.query.p || 0)))
 const canLoadMore = ref(false)
+const isLoadingMore = ref(false) // 新增：用于防止接口并发请求
 const loaderEl = ref<HTMLElement | null>(null)
 const loaderText = ref('加载中...')
 
@@ -175,26 +177,46 @@ const fetchPage = async (p: number) => {
     if (error.response?.status === 401 || error.data?.error === 'AUTH') {
       needLogin.value = true
     } 
-     return null 
+    return null 
   }
 }
 
+// 优化后的加载更多逻辑（加入请求锁与数据去重）
 const loadMore = async () => {
-  if (!canLoadMore.value) return
+  // 如果不能加载，或者正在加载中，直接返回避免并发
+  if (!canLoadMore.value || isLoadingMore.value) return
+  
+  isLoadingMore.value = true // 上锁
   currentPage.value++
-  const res = await fetchPage(currentPage.value)
-  if (res?.items?.length) {
-    items.value.push(...res.items)
-  } else {
-    loaderText.value = '到底了'
-    canLoadMore.value = false
+  
+  try {
+    const res = await fetchPage(currentPage.value)
+    
+    if (res?.items?.length) {
+      // 提取当前已有的所有 code 作为一个 Set，提高查找效率
+      const existingCodes = new Set(items.value.map(item => item.code))
+      
+      // 过滤掉已经在列表中的重复项
+      const newItems = res.items.filter((item: any) => !existingCodes.has(item.code))
+      
+      // 追加去重后的新数据
+      items.value.push(...newItems)
+    } else {
+      loaderText.value = '到底了'
+      canLoadMore.value = false
+    }
+  } catch (error) {
+    console.error('加载更多失败:', error)
+    // 请求失败时页码退回，允许下次重试
+    currentPage.value--
+  } finally {
+    isLoadingMore.value = false // 解锁
   }
 }
 
 /** 5. 工具函数 */
 const fromPath = computed(() => route.fullPath || '/all')
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
-const reload = () => window.location.reload()
 const saveLastViewed = (code: string) => sessionStorage.setItem('v2_last_code', code)
 const goToTopic = (id: string) => {
   showNotif.value = false
@@ -221,10 +243,10 @@ const checkUnread = async () => {
   } catch {}
 }
 
-
 const loadList = async ()=> {
   scrollTo({ top: 0, behavior: 'smooth' })
   loading.value = true
+  currentPage.value = 0
   const initial = await fetchPage(currentPage.value)
   if (initial?.items) {
     items.value = initial.items
@@ -237,7 +259,6 @@ const loadList = async ()=> {
 onMounted(async () => {
   
   loadList()
-
   checkHighlight()
 
   // 监听浏览器后退时的 bfcache
@@ -245,6 +266,7 @@ onMounted(async () => {
     if (e.persisted) checkHighlight()
   })
 
+  // 这里的 observer 不需要修改，loadMore 内部已经做了锁定保护
   const observer = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting && canLoadMore.value) loadMore()
   }, { rootMargin: '200px' })
@@ -409,8 +431,6 @@ useHead({ title: 'V2EX Reader' })
   color: var(--meta);
 }
 
-
-
 .badge {
   position: absolute;
   top: -2px;
@@ -442,5 +462,4 @@ useHead({ title: 'V2EX Reader' })
   max-height: 100px;
   object-fit: contain;
 }
-
 </style>
