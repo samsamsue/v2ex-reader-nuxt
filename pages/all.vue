@@ -52,7 +52,7 @@
           <button class="close-btn" @click="showNotif = false" aria-label="关闭">&times;</button>
         </div>
         
-        <div v-if="notifLoading" class="notif-state">
+        <div v-if="notifLoading && !notifs.length" class="notif-state">
           <p>正在获取消息...</p>
         </div>
         
@@ -311,23 +311,136 @@ useHead({ title: 'V2EX Reader' })
 
 /* Notif Drawer */
 #notifModal {
-  position: fixed; top: 0; right: -100%; width: 100%; max-width: 420px; height: 100vh;
-  background: var(--bg); z-index: 2000; transition: right 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-  border-left: 1px solid var(--border); display: flex; flex-direction: column; box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+  position: fixed;
+  top: 0;
+  right: -100%;
+  width: 100%;
+  max-width: 420px;
+  height: 100vh;
+  background: var(--bg);
+  z-index: 2000;
+  transition: right 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
 }
-#notifModal.open { right: 0; }
-#notifOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 1999; backdrop-filter: blur(2px); }
-#notifOverlay.open { opacity: 1; pointer-events: auto; }
 
-.notif-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-.notif-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: var(--meta); }
-.notif-item { display: flex; align-items: flex-start; padding: 16px 20px; gap: 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
-.notif-item:hover { background: var(--input-bg); }
-.notif-body { flex: 1; min-width: 0; }
-.notif-title { font-size: 0.95rem; font-weight: 500; line-height: 1.5; margin-bottom: 4px; }
-.notif-payload { margin-top: 10px; padding: 10px 14px; background: var(--input-bg); border-radius: 6px; font-size: 0.88rem; border-left: 3px solid var(--border); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.badge { position: absolute; top: -2px; right: -2px; background: #ff2c55; color: white; font-size: 10px; padding: 2px 5px; border-radius: 10px; border: 2px solid var(--bg); }
-.close-btn { background: none; border: none; font-size: 28px; color: var(--meta); cursor: pointer; }
+#notifModal.open {
+  right: 0;
+}
 
+#notifOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 1999;
+  backdrop-filter: blur(2px);
+}
+
+#notifOverlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.notif-header {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--meta);
+}
+
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px 20px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.notif-item:hover {
+  background: var(--input-bg);
+}
+
+.notif-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.notif-payload {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: var(--input-bg);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  border-left: 3px solid var(--border);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notif-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--meta);
+}
+
+
+
+.badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: #ff2c55;
+  color: white;
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 10px;
+  border: 2px solid var(--bg);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: var(--meta);
+  cursor: pointer;
+}
+
+.notif-list {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.notif-payload :deep(img) {
+  max-width: 100%;
+  max-height: 100px;
+  object-fit: contain;
+}
 
 </style>
