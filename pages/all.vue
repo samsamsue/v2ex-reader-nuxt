@@ -24,11 +24,11 @@
             <div v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</div>
           </div>
           <div class="fab" @click="scrollTop"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></div>
-          <div class="fab" @click="reload"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></div>
+          <div class="fab" :class="{'loading-rotate': loading}" @click="loadList"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></div>
         </div>
 
         <div id="list">
-          <div v-if="loading" class="list-skeleton">
+          <div v-if="loading && !items.length" class="list-skeleton">
             <div v-for="i in 5" :key="i" :class="['skeleton-line', `w-${40 + i*10}`]"></div>
           </div>
           
@@ -38,7 +38,11 @@
           </div>
         </div>
 
-        <div id="loader" ref="loaderEl" class="loader-text">{{ loaderText }}</div>
+        <div id="loader" ref="loaderEl" class="loader-text">
+          <template v-if="items.length">
+            {{ loaderText }}
+          </template>
+        </div>
       </div>
 
       <div id="notifOverlay" :class="{ open: showNotif }" @click="showNotif = false"></div>
@@ -82,6 +86,10 @@ const needLogin = ref(false)
 const items = ref<any[]>([])
 const loading = ref(true)
 const lastViewedCode = ref<string | null>(null)
+
+onMounted(() => {
+  items.value = JSON.parse(localStorage.getItem('v2_first_list') || '[]')
+})
 
 /** 2. 程序员模式 (Code Mode) */
 const isModeCode = ref(false)
@@ -152,7 +160,7 @@ const checkHighlight = () => {
       const el = document.getElementById('item_' + lastCode)
       if (el) {
         el.classList.remove('flash-highlight')
-        void el.offsetWidth // 触发重绘
+        // void el.offsetWidth // 触发重绘
         el.classList.add('flash-highlight')
         sessionStorage.removeItem('v2_last_code')
       }
@@ -213,13 +221,22 @@ const checkUnread = async () => {
   } catch {}
 }
 
-/** 7. 生命周期与后退监听 */
-onMounted(async () => {
+
+const loadList = async ()=> {
+  scrollTo({ top: 0, behavior: 'smooth' })
+  loading.value = true
   const initial = await fetchPage(currentPage.value)
   if (initial?.items) {
     items.value = initial.items
+    localStorage.setItem('v2_first_list', JSON.stringify(initial.items))
   }
   loading.value = false
+}
+
+/** 7. 生命周期与后退监听 */
+onMounted(async () => {
+  
+  loadList()
 
   checkHighlight()
 
@@ -258,6 +275,11 @@ useHead({ title: 'V2EX Reader' })
 :global(body.lock-scroll) {
   overflow: hidden !important;
   padding-right: var(--scrollbar-width, 0px);
+}
+
+.loader-text{
+  text-align: center;
+  padding-top:1rem;
 }
 
 #mainContent { width: 650px; max-width:100%; margin: 0 auto; padding: 20px; }
@@ -306,4 +328,6 @@ useHead({ title: 'V2EX Reader' })
 .notif-payload { margin-top: 10px; padding: 10px 14px; background: var(--input-bg); border-radius: 6px; font-size: 0.88rem; border-left: 3px solid var(--border); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .badge { position: absolute; top: -2px; right: -2px; background: #ff2c55; color: white; font-size: 10px; padding: 2px 5px; border-radius: 10px; border: 2px solid var(--bg); }
 .close-btn { background: none; border: none; font-size: 28px; color: var(--meta); cursor: pointer; }
+
+
 </style>

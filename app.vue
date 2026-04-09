@@ -10,4 +10,11 @@
   padding-right: var(--scrollbar-width, 0px); 
 
 }
+@keyframes loading-rotate{
+  from{transform:rotate(0deg)}
+  to{transform:rotate(360deg)}
+}
+.loading-rotate{
+  animation:loading-rotate 1s linear infinite;
+}
 </style>

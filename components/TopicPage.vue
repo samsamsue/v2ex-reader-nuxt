@@ -2,10 +2,73 @@
   <div>
     <LoginBox v-if="requireAuth && needLogin" :from="fromPath" />
     <template v-else>
-      <div v-html="codeModeHtml"></div>
-      <div id="mainContent">
-        <div id="newMsgNotify" :class="{ show: notifyVisible }" @click="refreshReplies">检测到新回复</div>
-        <div v-if="showHistoryPrompt && historyFloor" id="historyPrompt">
+      
+      <div id="codeMode" v-show="isModeCode">
+        <div style="margin-bottom:15px; color:var(--code-k); border-bottom:1px solid var(--border); padding-bottom:5px; font-weight:bold;">Infrastructure/Network/LoadBalancer.php</div>
+        <div><span class="code-ln">1</span><span class="code-k">&lt;?php</span></div>
+        <div><span class="code-ln">2</span><span class="code-k">namespace</span> App\Infrastructure\Network;</div>
+        <div><span class="code-ln">3</span></div>
+        <div><span class="code-ln">4</span><span class="code-k">class</span> <span class="code-v">LoadBalancer</span> {</div>
+        <div><span class="code-ln">5</span>    <span class="code-k">private</span> <span class="code-v">$nodes</span> = [];</div>
+        <div><span class="code-ln">6</span>    <span class="code-k">private</span> <span class="code-v">$healthyNodes</span> = [];</div>
+        <div><span class="code-ln">7</span></div>
+        <div><span class="code-ln">8</span>    <span class="code-k">public function</span> <span class="code-v">__construct</span>(<span class="code-k">array</span> <span class="code-v">$config</span>) {</div>
+        <div><span class="code-ln">9</span>        <span class="code-v">$this</span>-><span class="code-v">nodes</span> = <span class="code-v">$config</span>[<span class="code-s">'cluster_endpoints'</span>];</div>
+        <div><span class="code-ln">10</span>        <span class="code-v">$this</span>-><span class="code-v">checkHealth</span>();</div>
+        <div><span class="code-ln">11</span>    }</div>
+        <div><span class="code-ln">12</span></div>
+        <div><span class="code-ln">13</span>    <span class="code-k">private function</span> <span class="code-v">checkHealth</span>() {</div>
+        <div><span class="code-ln">14</span>        <span class="code-k">foreach</span> (<span class="code-v">$this</span>-><span class="code-v">nodes</span> <span class="code-k">as</span> <span class="code-v">$node</span>) {</div>
+        <div><span class="code-ln">15</span>            <span class="code-v">$status</span> = <span class="code-v">curl_init</span>(<span class="code-v">$node</span> . <span class="code-s">'/health'</span>);</div>
+        <div><span class="code-ln">16</span>            <span class="code-k">if</span> (<span class="code-v">curl_exec</span>(<span class="code-v">$status</span>)) {</div>
+        <div><span class="code-ln">17</span>                <span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>[] = <span class="code-v">$node</span>;</div>
+        <div><span class="code-ln">18</span>            }</div>
+        <div><span class="code-ln">19</span>        }</div>
+        <div><span class="code-ln">20</span>    }</div>
+        <div><span class="code-ln">21</span></div>
+        <div><span class="code-ln">22</span>    <span class="code-k">public function</span> <span class="code-v">getNextNode</span>() {</div>
+        <div><span class="code-ln">23</span>        <span class="code-k">return</span> <span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>[<span class="code-v">array_rand</span>(<span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>)];</div>
+        <div><span class="code-ln">24</span>    }</div>
+        <div><span class="code-ln">25</span>}</div>
+        <div><span class="code-ln">26</span></div>
+        <div><span class="code-ln">27</span><span class="code-c">// --- Node.js Event Loop Monitor ---</span></div>
+        <div><span class="code-ln">28</span><span class="code-k">const</span> <span class="code-v">os</span> = <span class="code-k">require</span>(<span class="code-s">'os'</span>);</div>
+        <div><span class="code-ln">29</span><span class="code-k">const</span> <span class="code-v">v8</span> = <span class="code-k">require</span>(<span class="code-s">'v8'</span>);</div>
+        <div><span class="code-ln">30</span></div>
+        <div><span class="code-ln">31</span><span class="code-k">setInterval</span>(() => {</div>
+        <div><span class="code-ln">32</span>    <span class="code-k">const</span> <span class="code-v">mem</span> = <span class="code-v">process</span>.<span class="code-v">memoryUsage</span>();</div>
+        <div><span class="code-ln">33</span>    <span class="code-k">if</span> (<span class="code-v">mem</span>.heapUsed > <span class="code-v">mem</span>.heapTotal * <span class="code-v">0.8</span>) {</div>
+        <div><span class="code-ln">34</span>        <span class="code-v">console</span>.<span class="code-v">warn</span>(<span class="code-s">'[GC_WARN] Heap usage near limit'</span>);</div>
+        <div><span class="code-ln">35</span>        <span class="code-v">v8</span>.<span class="code-v">setFlagsFromString</span>(<span class="code-s">'--expose-gc'</span>);</div>
+        <div><span class="code-ln">36</span>        <span class="code-k">global</span>.<span class="code-v">gc</span> && <span class="code-k">global</span>.<span class="code-v">gc</span>();</div>
+        <div><span class="code-ln">37</span>    }</div>
+        <div><span class="code-ln">38</span>}, <span class="code-v">10000</span>);</div>
+        <div><span class="code-ln">39</span></div>
+        <div><span class="code-ln">40</span><span class="code-k">function</span> <span class="code-v">syncStream</span>(<span class="code-v">buffer</span>) {</div>
+        <div><span class="code-ln">41</span>    <span class="code-k">return</span> <span class="code-k">new</span> <span class="code-v">Promise</span>((<span class="code-v">resolve</span>) => {</div>
+        <div><span class="code-ln">42</span>        <span class="code-v">setTimeout</span>(() => {</div>
+        <div><span class="code-ln">43</span>            <span class="code-v">console</span>.<span class="code-v">log</span>(<span class="code-s">'Stream synced successfully'</span>);</div>
+        <div><span class="code-ln">44</span>            <span class="code-v">resolve</span>(<span class="code-k">true</span>);</div>
+        <div><span class="code-ln">45</span>        }, <span class="code-v">500</span>);</div>
+        <div><span class="code-ln">46</span>    });</div>
+        <div><span class="code-ln">47</span>}</div>
+        <div><span class="code-ln">48</span></div>
+        <div><span class="code-ln">49</span><span class="code-c">// INFO: Listening on port 8080</span></div>
+        <div><span class="code-ln">50</span><span class="code-c">// LOG: Handshaking with internal node... OK</span></div>
+        <div><span class="code-ln">51</span><span class="code-c">// [REPEATED LOG BLOCKS FOR SCROLL DEPTH]</span></div>
+        <div><span class="code-ln">52</span><span class="code-c">// 2026-03-31 10:45:01 Processing packet 0xAB21</span></div>
+        <div><span class="code-ln">53</span><span class="code-c">// 2026-03-31 10:45:02 Processing packet 0xAB22</span></div>
+        <div><span class="code-ln">54</span><span class="code-c">// 2026-03-31 10:45:03 Processing packet 0xAB23</span></div>
+        <div><span class="code-ln">55</span><span class="code-c">// ... (代码将持续滚动直至 150 行)</span></div>
+        <div id="extraCode" v-html="extraCodeHtml"></div>
+      </div>
+
+      <div id="mainContent" v-show="!isModeCode">
+        <div id="newMsgNotify" :class="{ show: notifyVisible }" @click="refreshReplies">
+          <svg v-if="loadingReplies" class="loading-rotate" style="width:1rem;height:1rem;"  xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+          检测到新回复
+        </div>
+        <div v-if="showHistoryPrompt && historyFloor && replies.length" id="historyPrompt">
           <span>上次看到 <b>#{{ historyFloor }}</b> 楼</span>
           <button @click.stop="jumpToHistory">去这里</button>
           <span class="close" @click.stop="dismissHistory">×</span>
@@ -27,7 +90,7 @@
           <div class="fab" @click="scrollTop">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
           </div>
-          <div id="reBtn" class="fab" @click.stop="refreshReplies">
+          <div id="reBtn" :class="{'loading-rotate': loadingReplies}" class="fab" @click.stop="refreshReplies">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
           </div>
         </div>
@@ -43,7 +106,7 @@
           <div class="skeleton-line w-70"></div>
         </div>
 
-        <NuxtLink v-if="showShareLink && shareUrl" :to="shareUrl" class="end-link">—— END ——</NuxtLink>
+        <NuxtLink v-if="showShareLink && shareUrl && !loadingTopic" :to="shareUrl" class="end-link">—— END ——</NuxtLink>
 
         <div v-if="repliesReady && total > 0" class="comments">
           <div class="comments-title">讨论 (<span id="count">{{ total }}</span>)</div>
@@ -51,13 +114,13 @@
             <CommentTree :nodes="replies" :opAuthor="opAuthor" />
           </div>
         </div>
-        <div v-else-if="loadingReplies && !replies.length && total === 0" class="loading">Loading replies...</div>
-      </div>
+        </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue'
 import QRCode from 'qrcode'
 
 const props = withDefaults(defineProps<{
@@ -91,6 +154,7 @@ const props = withDefaults(defineProps<{
 
 useHead({ title: props.pageTitle })
 
+// --- 响应式状态 ---
 const needLogin = ref(false)
 const loadingTopic = ref(true)
 const loadingReplies = ref(true)
@@ -105,8 +169,18 @@ const historyFloor = ref<string | null>(null)
 const showHistoryPrompt = ref(false)
 const qrVisible = ref(false)
 const qrDataUrl = ref<string>('')
-let qrcodeInited = false
+const isModeCode = ref(false) 
+const extraCodeHtml = ref('')
 
+// --- 内部变量 ---
+let qrcodeInited = false
+let lastScrollY = 0
+let favInterval: any = null
+let normalFav = ''
+let alertFav = ''
+const SCROLL_KEY = 'v2_floor_pos'
+
+// --- 计算属性 ---
 const codeParam = computed(() => props.code || '')
 const rawId = computed(() => {
   try {
@@ -115,44 +189,137 @@ const rawId = computed(() => {
     return 0
   }
 })
-
 const shareUrl = computed(() => {
   if (!props.shareSalt) return ''
   const raw = rawId.value || 0
   const code = (raw ^ props.shareSalt).toString(36)
   return `/s/${code}`
 })
-
 const topicReady = computed(() => !!topicContent.value || !loadingTopic.value)
 const repliesReady = computed(() => replies.value.length > 0 || total.value > 0 || !loadingReplies.value)
 
-const scrollTop = () => window.scrollTo({ top: 0 })
+// --- 方法：楼层记忆功能 ---
+const saveFloor = (id: string, floorId: string) => {
+  if (!id) return // 增加防空判定
+  let data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}')
+  data[id] = { f: floorId, t: Date.now() }
+  const keys = Object.keys(data)
+  if (keys.length > 100) {
+    const oldest = keys.sort((a, b) => data[a].t - data[b].t)[0]
+    delete data[oldest]
+  }
+  localStorage.setItem(SCROLL_KEY, JSON.stringify(data))
+}
+
+const getFloor = (id: string) => {
+  if (!id) return null
+  const data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}')
+  return data[id] ? data[id].f : null
+}
+
+const removeFloor = (id: string) => {
+  if (!id) return
+  let data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}')
+  if (data[id]) {
+    delete data[id]
+    localStorage.setItem(SCROLL_KEY, JSON.stringify(data))
+  }
+}
+
+// --- 方法：UI 操作 ---
+const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 const openOriginal = () => window.open(`https://www.v2ex.com/t/${rawId.value}`, '_blank')
 const goBack = () => {
   if (document.referrer && document.referrer.includes(location.host)) history.back()
   else navigateTo(props.backTo || '/all')
 }
-const postCode = computed(() => codeParam.value)
+
 const checkHistory = () => {
-  const saved = (window as any).getFloor?.(postCode.value)
+  const saved = getFloor(codeParam.value)
   if (saved) {
     historyFloor.value = saved
     showHistoryPrompt.value = true
   }
 }
+
 const dismissHistory = () => {
   showHistoryPrompt.value = false
 }
+
 const jumpToHistory = () => {
   if (!historyFloor.value) return
   const el = document.getElementById('c_' + historyFloor.value)
   if (el) {
-    window.scrollTo({ top: el.offsetTop - 80 })
+    window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
     el.classList.add('flash-highlight')
   }
   dismissHistory()
 }
 
+// --- 方法：Favicon 闪烁 ---
+const drawFavicons = () => {
+  const c = document.createElement('canvas')
+  c.width = 32; c.height = 32; const x = c.getContext('2d')!
+  x.fillStyle = '#1d2129'; x.fillRect(0, 0, 32, 32)
+  x.fillStyle = '#fff'; x.font = 'bold 22px sans-serif'; x.fillText('V', 8, 24)
+  normalFav = c.toDataURL()
+  x.beginPath(); x.arc(25, 7, 7, 0, Math.PI * 2); x.fillStyle = '#ff2c55'; x.fill()
+  x.strokeStyle = '#fff'; x.lineWidth = 2; x.stroke()
+  alertFav = c.toDataURL()
+  
+  let link: HTMLLinkElement = document.querySelector("link[rel*='icon']") || document.createElement('link')
+  link.type = 'image/x-icon'; link.rel = 'shortcut icon'; link.href = normalFav
+  document.getElementsByTagName('head')[0].appendChild(link)
+}
+
+const startBlink = () => {
+  if (favInterval) return
+  let s = 0
+  favInterval = setInterval(() => {
+    const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']")
+    if (link) link.href = (s % 2 === 0) ? alertFav : normalFav
+    s++
+  }, 800)
+}
+
+const stopBlink = () => {
+  if (favInterval) { clearInterval(favInterval); favInterval = null }
+  const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']")
+  if (link) link.href = normalFav
+}
+
+// --- 方法：代码模式 (取代全局双击事件) ---
+const handleDblClick = (e: MouseEvent) => {
+  if ((e.target as HTMLElement).closest('.fab')) return
+  
+  isModeCode.value = !isModeCode.value
+  const html = document.documentElement
+  
+  if (isModeCode.value) {
+    // 生成伪造代码行
+    let extra = ''
+    for (let i = 56; i < 160; i++) {
+      extra += `<div><span class="code-ln">${i}</span><span class="code-c">// LOG: Syncing with distributed shard 0x${(Math.random() * 0xFFFF << 0).toString(16).toUpperCase()}... OK</span></div>`
+    }
+    extraCodeHtml.value = extra
+    
+    lastScrollY = window.scrollY
+    html.style.scrollBehavior = 'auto'
+    document.body.style.overflow = 'hidden'
+    
+    // 异步确保 DOM 渲染后滚动
+    nextTick(() => {
+      const cm = document.getElementById('codeMode')
+      if (cm) cm.scrollTop = 200 + Math.random() * 300
+    })
+  } else {
+    document.body.style.overflow = ''
+    window.scrollTo(0, lastScrollY)
+    setTimeout(() => { html.style.scrollBehavior = 'smooth' }, 50)
+  }
+}
+
+// --- 数据抓取 ---
 const fetchTopic = async () => {
   loadingTopic.value = true
   try {
@@ -170,39 +337,68 @@ const fetchTopic = async () => {
   }
 }
 
-const fetchReplies = async (silent = false) => {
+const fetchReplies = async (silent = false): Promise<boolean> => {
   if (!silent) loadingReplies.value = true
+  let hasNewReplies = false
+  
   try {
     const res: any = await $fetch(`${props.repliesApiBase}/${rawId.value}`, { query: { _t: Date.now() } })
     if (props.requireAuth && res?.error === 'AUTH') {
       needLogin.value = true
-      return
+      return false
     }
+    
     const prevIds = allIds.value.slice()
     replies.value = res?.replies || []
     opAuthor.value = res?.opAuthor || null
     total.value = res?.total || 0
     allIds.value = res?.allIds || []
+    
     if (silent && prevIds.length) {
       const newIds = allIds.value.filter((id) => !prevIds.includes(id))
-      if (newIds.length) {
-        newIds.forEach((id) => {
-          const el = document.getElementById('c_' + id)
-          if (el) el.classList.add('flash-highlight')
+      
+      if (newIds.length > 0) {
+        hasNewReplies = true
+        nextTick(() => {
+          // 定位到第一个新回复
+          const firstNewEl = document.getElementById('c_' + newIds[0])
+          if (firstNewEl) {
+            window.scrollTo({ top: firstNewEl.offsetTop - 80, behavior: 'smooth' })
+          }
+          
+          // 给所有新回复加上闪烁特效
+          newIds.forEach((id) => {
+            const el = document.getElementById('c_' + id)
+            if (el) {
+              // 强制重绘，确保高亮动画能正常触发
+              el.classList.remove('flash-highlight')
+              void el.offsetWidth 
+              el.classList.add('flash-highlight')
+            }
+          })
         })
       }
     }
   } catch {} finally {
     if (!silent) loadingReplies.value = false
   }
+  
+  return hasNewReplies
 }
 
 const refreshReplies = async () => {
-  const y = window.scrollY
-  await fetchReplies(true)
-  window.scrollTo(0, y)
+  const currentY = window.scrollY
+  loadingReplies.value = true
+  const hasNew = await fetchReplies(true)
+  loadingReplies.value = false
+  
+  // 仅在没有新回复时，才强行恢复滚动条，防止页面乱跳
+  if (!hasNew) {
+    window.scrollTo(0, currentY)
+  }
+  
   notifyVisible.value = false
-  ;(window as any).stopBlink?.()
+  stopBlink()
   checkHistory()
 }
 
@@ -217,174 +413,44 @@ const toggleQr = async () => {
   }
 }
 
-const codeModeHtml = `
-<div id="codeMode">
-  <div style="margin-bottom:15px; color:var(--code-k); border-bottom:1px solid var(--border); padding-bottom:5px; font-weight:bold;">Infrastructure/Network/LoadBalancer.php</div>
-  <div><span class="code-ln">1</span><span class="code-k">&lt;?php</span></div>
-  <div><span class="code-ln">2</span><span class="code-k">namespace</span> App\\\\Infrastructure\\\\Network;</div>
-  <div><span class="code-ln">3</span></div>
-  <div><span class="code-ln">4</span><span class="code-k">class</span> <span class="code-v">LoadBalancer</span> {</div>
-  <div><span class="code-ln">5</span>    <span class="code-k">private</span> <span class="code-v">$nodes</span> = [];</div>
-  <div><span class="code-ln">6</span>    <span class="code-k">private</span> <span class="code-v">$healthyNodes</span> = [];</div>
-  <div><span class="code-ln">7</span></div>
-  <div><span class="code-ln">8</span>    <span class="code-k">public function</span> <span class="code-v">__construct</span>(<span class="code-k">array</span> <span class="code-v">$config</span>) {</div>
-  <div><span class="code-ln">9</span>        <span class="code-v">$this</span>-><span class="code-v">nodes</span> = <span class="code-v">$config</span>[<span class="code-s">'cluster_endpoints'</span>];</div>
-  <div><span class="code-ln">10</span>        <span class="code-v">$this</span>-><span class="code-v">checkHealth</span>();</div>
-  <div><span class="code-ln">11</span>    }</div>
-  <div><span class="code-ln">12</span></div>
-  <div><span class="code-ln">13</span>    <span class="code-k">private function</span> <span class="code-v">checkHealth</span>() {</div>
-  <div><span class="code-ln">14</span>        <span class="code-k">foreach</span> (<span class="code-v">$this</span>-><span class="code-v">nodes</span> <span class="code-k">as</span> <span class="code-v">$node</span>) {</div>
-  <div><span class="code-ln">15</span>            <span class="code-v">$status</span> = <span class="code-v">curl_init</span>(<span class="code-v">$node</span> . <span class="code-s">'/health'</span>);</div>
-  <div><span class="code-ln">16</span>            <span class="code-k">if</span> (<span class="code-v">curl_exec</span>(<span class="code-v">$status</span>)) {</div>
-  <div><span class="code-ln">17</span>                <span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>[] = <span class="code-v">$node</span>;</div>
-  <div><span class="code-ln">18</span>            }</div>
-  <div><span class="code-ln">19</span>        }</div>
-  <div><span class="code-ln">20</span>    }</div>
-  <div><span class="code-ln">21</span></div>
-  <div><span class="code-ln">22</span>    <span class="code-k">public function</span> <span class="code-v">getNextNode</span>() {</div>
-  <div><span class="code-ln">23</span>        <span class="code-k">return</span> <span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>[<span class="code-v">array_rand</span>(<span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>)];</div>
-  <div><span class="code-ln">24</span>    }</div>
-  <div><span class="code-ln">25</span>}</div>
-  <div><span class="code-ln">26</span></div>
-  <div><span class="code-ln">27</span><span class="code-c">// --- Node.js Event Loop Monitor ---</span></div>
-  <div><span class="code-ln">28</span><span class="code-k">const</span> <span class="code-v">os</span> = <span class="code-k">require</span>(<span class="code-s">'os'</span>);</div>
-  <div><span class="code-ln">29</span><span class="code-k">const</span> <span class="code-v">v8</span> = <span class="code-k">require</span>(<span class="code-s">'v8'</span>);</div>
-  <div><span class="code-ln">30</span></div>
-  <div><span class="code-ln">31</span><span class="code-k">setInterval</span>(() => {</div>
-  <div><span class="code-ln">32</span>    <span class="code-k">const</span> <span class="code-v">mem</span> = <span class="code-v">process</span>.<span class="code-v">memoryUsage</span>();</div>
-  <div><span class="code-ln">33</span>    <span class="code-k">if</span> (<span class="code-v">mem</span>.heapUsed > <span class="code-v">mem</span>.heapTotal * <span class="code-v">0.8</span>) {</div>
-  <div><span class="code-ln">34</span>        <span class="code-v">console</span>.<span class="code-v">warn</span>(<span class="code-s">'[GC_WARN] Heap usage near limit'</span>);</div>
-  <div><span class="code-ln">35</span>        <span class="code-v">v8</span>.<span class="code-v">setFlagsFromString</span>(<span class="code-s">'--expose-gc'</span>);</div>
-  <div><span class="code-ln">36</span>        <span class="code-k">global</span>.<span class="code-v">gc</span> && <span class="code-k">global</span>.<span class="code-v">gc</span>();</div>
-  <div><span class="code-ln">37</span>    }</div>
-  <div><span class="code-ln">38</span>}, <span class="code-v">10000</span>);</div>
-  <div><span class="code-ln">39</span></div>
-  <div><span class="code-ln">40</span><span class="code-k">function</span> <span class="code-v">syncStream</span>(<span class="code-v">buffer</span>) {</div>
-  <div><span class="code-ln">41</span>    <span class="code-k">return</span> <span class="code-k">new</span> <span class="code-v">Promise</span>((<span class="code-v">resolve</span>) => {</div>
-  <div><span class="code-ln">42</span>        <span class="code-v">setTimeout</span>(() => {</div>
-  <div><span class="code-ln">43</span>            <span class="code-v">console</span>.<span class="code-v">log</span>(<span class="code-s">'Stream synced successfully'</span>);</div>
-  <div><span class="code-ln">44</span>            <span class="code-v">resolve</span>(<span class="code-k">true</span>);</div>
-  <div><span class="code-ln">45</span>        }, <span class="code-v">500</span>);</div>
-  <div><span class="code-ln">46</span>    });</div>
-  <div><span class="code-ln">47</span>}</div>
-  <div><span class="code-ln">48</span></div>
-  <div><span class="code-ln">49</span><span class="code-c">// INFO: Listening on port 8080</span></div>
-  <div><span class="code-ln">50</span><span class="code-c">// LOG: Handshaking with internal node... OK</span></div>
-  <div><span class="code-ln">51</span><span class="code-c">// [REPEATED LOG BLOCKS FOR SCROLL DEPTH]</span></div>
-  <div><span class="code-ln">52</span><span class="code-c">// 2026-03-31 10:45:01 Processing packet 0xAB21</span></div>
-  <div><span class="code-ln">53</span><span class="code-c">// 2026-03-31 10:45:02 Processing packet 0xAB22</span></div>
-  <div><span class="code-ln">54</span><span class="code-c">// 2026-03-31 10:45:03 Processing packet 0xAB23</span></div>
-  <div><span class="code-ln">55</span><span class="code-c">// ... (代码将持续滚动直至 150 行)</span></div>
-  <div id="extraCode"></div>
-</div>
-`
+// --- 生命周期 ---
+let pollTimer: any = null
+let scrollTimer: any = null
 
-const SHARED_JS = `
-(function(){
-if (window.__v2_shared_loaded) return;
-window.__v2_shared_loaded = true;
-const SCROLL_KEY = 'v2_floor_pos';
-window.saveFloor = function(id, floorId) {
-  let data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}');
-  data[id] = { f: floorId, t: Date.now() };
-  const keys = Object.keys(data);
-  if (keys.length > 100) {
-    const oldest = keys.sort((a, b) => data[a].t - data[b].t)[0];
-    delete data[oldest];
-  }
-  localStorage.setItem(SCROLL_KEY, JSON.stringify(data));
-};
-window.getFloor = function(id) {
-  const data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}');
-  return data[id] ? data[id].f : null;
-};
-window.removeFloor = function(id) {
-  let data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}');
-  if (data[id]) {
-    delete data[id];
-    localStorage.setItem(SCROLL_KEY, JSON.stringify(data));
-  }
-};
-window.jumpToFloor = function(e, id) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  const el = document.getElementById('c_' + id);
-  if (el) {
-    window.scrollTo({top: el.offsetTop - 80, behavior: 'smooth'});
-    el.classList.remove('flash-highlight');
-    void el.offsetWidth;
-    el.classList.add('flash-highlight');
-  } else {
-    const notify = document.getElementById('newMsgNotify');
-    if (notify) {
-      const oldText = notify.innerText;
-      notify.innerText = "该楼层暂未加载或已不存在";
-      notify.classList.add('show');
-      setTimeout(() => { notify.classList.remove('show'); setTimeout(() => notify.innerText = oldText, 500); }, 2000);
-    }
-  }
-};
-let lastScrollY = 0; window.isModeCode = false;
-window.ondblclick = (e) => {
-  if (e.target.closest('.fab')) return;
-  const cm = document.getElementById('codeMode');
-  const mc = document.getElementById('mainContent');
-  const html = document.documentElement;
-  window.isModeCode = !window.isModeCode;
-  if (window.isModeCode) {
-    let extra = ''; for(let i=56; i<160; i++) extra += '<div><span class="code-ln">'+i+'</span><span class="code-c">// LOG: Syncing with distributed shard 0x' + (Math.random()*0xFFFF<<0).toString(16).toUpperCase() + '... OK</span></div>';
-    document.getElementById('extraCode').innerHTML = extra;
-    lastScrollY = window.scrollY; html.style.scrollBehavior = 'auto';
-    cm.style.display = 'block'; if(mc) mc.style.display = 'none';
-    document.body.style.overflow = 'hidden'; cm.scrollTop = 200 + Math.random()*300;
-  } else {
-    cm.style.display = 'none'; if(mc) mc.style.display = 'block';
-    document.body.style.overflow = ''; window.scrollTo(0, lastScrollY);
-    setTimeout(() => { html.style.scrollBehavior = 'smooth'; }, 50);
-  }
-};
-let normalFav, alertFav, favInterval=null;
-function drawFavicons(){
-  const c=document.createElement('canvas');c.width=32;c.height=32;const x=c.getContext('2d');
-  x.fillStyle='#1d2129';x.fillRect(0,0,32,32);x.fillStyle='#fff';x.font='bold 22px sans-serif';x.fillText('V',8,24);
-  normalFav=c.toDataURL();
-  x.beginPath();x.arc(25,7,7,0,Math.PI*2);x.fillStyle='#ff2c55';x.fill();
-  x.strokeStyle='#fff';x.lineWidth=2;x.stroke();
-  alertFav=c.toDataURL();
-  let link = document.querySelector("link[rel*='icon']") || document.createElement('link');
-  link.type='image/x-icon'; link.rel='shortcut icon'; link.href=normalFav;
-  document.getElementsByTagName('head')[0].appendChild(link);
-}
-function startBlink(){ if(favInterval)return; let s=0; favInterval=setInterval(()=>{ document.querySelector("link[rel*='icon']").href=(s%2===0)?alertFav:normalFav; s++; },800); }
-function stopBlink(){ if(favInterval){clearInterval(favInterval);favInterval=null;} document.querySelector("link[rel*='icon']").href=normalFav; }
-window.startBlink = startBlink; window.stopBlink = stopBlink; window.drawFavicons = drawFavicons;
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible')stopBlink(); });
-})();
-`
+onActivated(() => {
+  checkHistory()
+})
 
-onMounted(async () => {
-  try {
-    if (!(window as any).__v2_shared_loaded) {
-      const runShared = new Function(SHARED_JS)
-      runShared()
-    }
-  } catch {}
-  ;(window as any).drawFavicons?.()
+onMounted(() => {
+  drawFavicons()
+  window.addEventListener('dblclick', handleDblClick)
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') stopBlink()
+  })
 
-  const p1 = fetchTopic()
-  const p2 = fetchReplies()
-  await Promise.allSettled([p1, p2])
+  // 初始加载
+  fetchTopic()
+  fetchReplies()
 
-  let scrollTimer: any
+  // 滚动监听：记录阅读进度
   window.addEventListener('scroll', () => {
-    if ((window as any).isModeCode) return
+    if (isModeCode.value) return
+    
+    // 【修复核心】：如果历史提示还在显示，说明用户还没决定是否跳转，此时屏蔽清除或覆盖逻辑
+    if (showHistoryPrompt.value) return 
+
     clearTimeout(scrollTimer)
     scrollTimer = setTimeout(() => {
       const comments = document.querySelectorAll('.comment-item')
       const commentsBox = document.getElementById('comments')
-      if (commentsBox && commentsBox.getBoundingClientRect().top > 85) {
-        ;(window as any).removeFloor?.(postCode.value)
+      
+      // 如果向上滚动离开了评论区，则清除该帖子的阅读记录
+      if (commentsBox && commentsBox.getBoundingClientRect().top > 85 && window.scrollY > 10) {
+        removeFloor(codeParam.value)
         return
       }
+      
+      // 记录当前看过的楼层
       let currentFloor: string | null = null
       for (let i = 0; i < comments.length; i++) {
         const rect = comments[i].getBoundingClientRect()
@@ -393,46 +459,47 @@ onMounted(async () => {
           break
         }
       }
-      if (currentFloor) {
-        ;(window as any).saveFloor?.(postCode.value, currentFloor)
-      }
+      if (currentFloor) saveFloor(codeParam.value, currentFloor)
     }, 300)
   })
 
+  // 轮询新回复
   const poll = async () => {
-    if ((window as any).isModeCode || document.visibilityState === 'hidden') {
-      setTimeout(poll, 10000)
+    if (isModeCode.value || document.visibilityState === 'hidden') {
+      pollTimer = setTimeout(poll, 10000)
       return
     }
     try {
       const res: any = await $fetch(`${props.repliesApiBase}/${rawId.value}`, { query: { _t: Date.now() } })
       if (res?.total > total.value) {
         notifyVisible.value = true
-        ;(window as any).startBlink?.()
+        startBlink()
       }
     } catch {}
-    setTimeout(poll, 50000 + Math.random() * 20000)
+    pollTimer = setTimeout(poll, 50000 + Math.random() * 20000)
   }
-
-  setTimeout(poll, 60000)
+  pollTimer = setTimeout(poll, 60000)
 
   window.addEventListener('pageshow', (e) => {
     if ((e as any).persisted) refreshReplies()
   })
-
-  checkHistory()
 })
 
-watch(
-  () => rawId.value,
-  async (next, prev) => {
-    if (!next || next === prev) return
-    loadingTopic.value = true
-    loadingReplies.value = true
-    await Promise.allSettled([fetchTopic(), fetchReplies()])
-    checkHistory()
-  }
-)
+onUnmounted(() => {
+  window.removeEventListener('dblclick', handleDblClick)
+  clearTimeout(pollTimer)
+  clearTimeout(scrollTimer)
+  stopBlink()
+})
+
+// --- 监听 ID 变化 ---
+watch(() => rawId.value, async (next, prev) => {
+  if (!next || next === prev) return
+  loadingTopic.value = true
+  loadingReplies.value = true
+  await Promise.allSettled([fetchTopic(), fetchReplies()])
+  checkHistory()
+})
 </script>
 
 <style>
@@ -468,7 +535,7 @@ watch(
 }
 
 html {
-  scroll-behavior: auto;
+  scroll-behavior:auto ;
 }
 
 body {
@@ -510,6 +577,10 @@ body {
   display: block;
   margin: 15px 0;
   border-radius: 4px;
+}
+
+.content h1 {
+  font-size: 1.2rem;
 }
 
 .content h2 {
@@ -595,7 +666,7 @@ body {
 }
 
 #codeMode {
-  display: none;
+  /* display: none; */ /* 现在由 Vue 控制，不需要初始写死 */
   position: fixed;
   top: 0;
   left: 0;
@@ -695,6 +766,9 @@ body {
   z-index: 101;
   cursor: pointer;
   transition: transform 0.5s;
+  display: flex;
+  gap:1rem;
+  align-items: center;
 }
 
 #newMsgNotify.show {
@@ -719,6 +793,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  white-space: nowrap;
 }
 
 #historyPrompt button {
