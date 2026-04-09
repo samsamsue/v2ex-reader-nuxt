@@ -14,6 +14,7 @@ type HydrationStrategies = {
 type LazyComponent<T> = DefineComponent<HydrationStrategies, {}, {}, {}, {}, {}, {}, { hydrated: () => void }> & T
 
 
+export const CodeBox: typeof import("../components/CodeBox.vue")['default']
 export const CommentTree: typeof import("../components/CommentTree.vue")['default']
 export const LoginBox: typeof import("../components/LoginBox.vue")['default']
 export const TopicPage: typeof import("../components/TopicPage.vue")['default']
@@ -40,6 +41,7 @@ export const Head: typeof import("../node_modules/.store/nuxt@3.21.2/node_module
 export const Html: typeof import("../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/head/runtime/components")['Html']
 export const Body: typeof import("../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/head/runtime/components")['Body']
 export const NuxtIsland: typeof import("../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/components/nuxt-island")['default']
+export const LazyCodeBox: LazyComponent<typeof import("../components/CodeBox.vue")['default']>
 export const LazyCommentTree: LazyComponent<typeof import("../components/CommentTree.vue")['default']>
 export const LazyLoginBox: LazyComponent<typeof import("../components/LoginBox.vue")['default']>
 export const LazyTopicPage: LazyComponent<typeof import("../components/TopicPage.vue")['default']>

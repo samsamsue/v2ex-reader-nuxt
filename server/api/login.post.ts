@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     setCookie(event, COOKIE_NAME, COOKIE_VALUE, {
       path: '/',
       maxAge: 60 * 60 * 24 * 30,
-      httpOnly: true,
+      // httpOnly: true,
       sameSite: 'lax'
     })
     return { ok: true }

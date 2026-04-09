@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { lockScroll, unLockScroll } from '../utils/common'
 /** 1. 基础状态 */
 const route = useRoute()
 const needLogin = ref(false)
@@ -121,13 +122,7 @@ const notifLoading = ref(false)
 // 监听抽屉状态：锁定滚动条并处理防抖宽度
 watch(showNotif, (val) => {
   if (process.client) {
-    if (val) {
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth}px`);
-      document.body.classList.add('lock-scroll');
-    } else {
-      document.body.classList.remove('lock-scroll');
-    }
+    val? lockScroll('notif') : unLockScroll('notif')
   }
 });
 
@@ -176,7 +171,12 @@ const fetchPage = async (p: number) => {
       return null
     }
     return res
-  } catch { return null }
+  } catch (error: any){
+    if (error.response?.status === 401 || error.data?.error === 'AUTH') {
+      needLogin.value = true
+    } 
+     return null 
+  }
 }
 
 const loadMore = async () => {

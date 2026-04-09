@@ -43,6 +43,7 @@ declare global {
   const isVue2: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/compat/vue-demi').isVue2
   const isVue3: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/compat/vue-demi').isVue3
   const loadPayload: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/payload').loadPayload
+  const lockScroll: typeof import('../../utils/common').lockScroll
   const markRaw: typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue').markRaw
   const navigateTo: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/router').navigateTo
   const nextTick: typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue').nextTick
@@ -92,6 +93,7 @@ declare global {
   const toValue: typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue').toValue
   const triggerRef: typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue').triggerRef
   const tryUseNuxtApp: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/nuxt').tryUseNuxtApp
+  const unLockScroll: typeof import('../../utils/common').unLockScroll
   const unref: typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue').unref
   const updateAppConfig: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/config').updateAppConfig
   const useAppConfig: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/config').useAppConfig
@@ -113,6 +115,7 @@ declare global {
   const useModel: typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue').useModel
   const useNuxtApp: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/nuxt').useNuxtApp
   const useNuxtData: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/asyncData').useNuxtData
+  const useNuxtDevTools: typeof import('../../node_modules/.store/@nuxt+devtools@3.2.4/node_modules/@nuxt/devtools/dist/runtime/use-nuxt-devtools').useNuxtDevTools
   const usePreviewMode: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/preview').usePreviewMode
   const useRequestEvent: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/ssr').useRequestEvent
   const useRequestFetch: typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/ssr').useRequestFetch
@@ -227,6 +230,7 @@ declare module 'vue' {
     readonly isVue2: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/compat/vue-demi')['isVue2']>
     readonly isVue3: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/compat/vue-demi')['isVue3']>
     readonly loadPayload: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/payload')['loadPayload']>
+    readonly lockScroll: UnwrapRef<typeof import('../../utils/common')['lockScroll']>
     readonly markRaw: UnwrapRef<typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue')['markRaw']>
     readonly navigateTo: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/router')['navigateTo']>
     readonly nextTick: UnwrapRef<typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue')['nextTick']>
@@ -276,6 +280,7 @@ declare module 'vue' {
     readonly toValue: UnwrapRef<typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue')['toValue']>
     readonly triggerRef: UnwrapRef<typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue')['triggerRef']>
     readonly tryUseNuxtApp: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/nuxt')['tryUseNuxtApp']>
+    readonly unLockScroll: UnwrapRef<typeof import('../../utils/common')['unLockScroll']>
     readonly unref: UnwrapRef<typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue')['unref']>
     readonly updateAppConfig: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/config')['updateAppConfig']>
     readonly useAppConfig: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/config')['useAppConfig']>
@@ -297,6 +302,7 @@ declare module 'vue' {
     readonly useModel: UnwrapRef<typeof import('../../node_modules/.store/vue@3.5.32/node_modules/vue')['useModel']>
     readonly useNuxtApp: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/nuxt')['useNuxtApp']>
     readonly useNuxtData: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/asyncData')['useNuxtData']>
+    readonly useNuxtDevTools: UnwrapRef<typeof import('../../node_modules/.store/@nuxt+devtools@3.2.4/node_modules/@nuxt/devtools/dist/runtime/use-nuxt-devtools')['useNuxtDevTools']>
     readonly usePreviewMode: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/preview')['usePreviewMode']>
     readonly useRequestEvent: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/ssr')['useRequestEvent']>
     readonly useRequestFetch: UnwrapRef<typeof import('../../node_modules/.store/nuxt@3.21.2/node_modules/nuxt/dist/app/composables/ssr')['useRequestFetch']>

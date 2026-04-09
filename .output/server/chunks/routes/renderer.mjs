@@ -1,11 +1,19 @@
 import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'vue-bundle-renderer/runtime';
-import { j as joinRelativeURL, u as useRuntimeConfig, k as getResponseStatusText, l as getResponseStatus, m as defineRenderHandler, f as getQuery, n as createError, o as getRouteRules, p as joinURL, b as useNitroApp } from '../_/nitro.mjs';
+import { j as joinRelativeURL, u as useRuntimeConfig, e as getResponseStatusText, f as getResponseStatus, h as defineRenderHandler, a as getQuery, i as createError, k as getRouteRules, l as joinURL, m as useNitroApp } from '../_/nitro.mjs';
 import { renderToString } from 'vue/server-renderer';
 import { createHead as createHead$1, propsToString, renderSSRHead } from 'unhead/server';
 import { stringify, uneval } from 'devalue';
-import { walkResolver } from 'unhead/utils';
-import { isRef, toValue, hasInjectionContext, inject, ref, watchEffect, getCurrentInstance, onBeforeUnmount, onDeactivated, onActivated } from 'vue';
+import { isRef, toValue } from 'vue';
 import { DeprecationsPlugin, PromisesPlugin, TemplateParamsPlugin, AliasSortingPlugin } from 'unhead/plugins';
+import 'node:http';
+import 'node:https';
+import 'node:events';
+import 'node:buffer';
+import 'node:fs';
+import 'node:path';
+import 'node:crypto';
+import 'undici';
+import 'node:url';
 
 const VueResolver = (_, value) => {
   return isRef(value) ? toValue(value) : value;
@@ -22,46 +30,6 @@ function vueInstall(head) {
     }
   };
   return plugin.install;
-}
-
-// @__NO_SIDE_EFFECTS__
-function injectHead() {
-  if (hasInjectionContext()) {
-    const instance = inject(headSymbol);
-    if (instance) {
-      return instance;
-    }
-  }
-  throw new Error("useHead() was called without provide context, ensure you call it through the setup() function.");
-}
-function useHead(input, options = {}) {
-  const head = options.head || /* @__PURE__ */ injectHead();
-  return head.ssr ? head.push(input || {}, options) : clientUseHead(head, input, options);
-}
-function clientUseHead(head, input, options = {}) {
-  const deactivated = ref(false);
-  let entry;
-  watchEffect(() => {
-    const i = deactivated.value ? {} : walkResolver(input, VueResolver);
-    if (entry) {
-      entry.patch(i);
-    } else {
-      entry = head.push(i, options);
-    }
-  });
-  const vm = getCurrentInstance();
-  if (vm) {
-    onBeforeUnmount(() => {
-      entry.dispose();
-    });
-    onDeactivated(() => {
-      deactivated.value = true;
-    });
-    onActivated(() => {
-      deactivated.value = false;
-    });
-  }
-  return entry;
 }
 
 // @__NO_SIDE_EFFECTS__
@@ -88,10 +56,6 @@ const appTeleportAttrs = {"id":"teleports"};
 
 const appId = "nuxt-app";
 
-function baseURL() {
-	// TODO: support passing event to `useRuntimeConfig`
-	return useRuntimeConfig().app.baseURL;
-}
 function buildAssetsDir() {
 	// TODO: support passing event to `useRuntimeConfig`
 	return useRuntimeConfig().app.buildAssetsDir;
@@ -109,7 +73,7 @@ function publicAssetsURL(...path) {
 const APP_ROOT_OPEN_TAG = `<${appRootTag}${propsToString(appRootAttrs)}>`;
 const APP_ROOT_CLOSE_TAG = `</${appRootTag}>`;
 // @ts-expect-error file will be produced after app build
-const getServerEntry = () => import('../build/server.mjs').then((r) => r.default || r);
+const getServerEntry = () => import('../build/server.mjs').then(function (n) { return n.s; }).then((r) => r.default || r);
 // @ts-expect-error file will be produced after app build
 const getPrecomputedDependencies = () => import('../build/client.precomputed.mjs').then((r) => r.default || r).then((r) => typeof r === "function" ? r() : r);
 // -- SSR Renderer --
@@ -489,10 +453,5 @@ function renderHTMLDocument(html) {
 	return "<!DOCTYPE html>" + `<html${joinAttrs(html.htmlAttrs)}>` + `<head>${joinTags(html.head)}</head>` + `<body${joinAttrs(html.bodyAttrs)}>${joinTags(html.bodyPrepend)}${joinTags(html.body)}${joinTags(html.bodyAppend)}</body>` + "</html>";
 }
 
-const renderer = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: handler
-}, Symbol.toStringTag, { value: 'Module' }));
-
-export { baseURL as b, headSymbol as h, renderer as r, useHead as u };
+export { handler as default };
 //# sourceMappingURL=renderer.mjs.map

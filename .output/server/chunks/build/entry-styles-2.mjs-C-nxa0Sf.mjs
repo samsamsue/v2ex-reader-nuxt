@@ -1,0 +1,4 @@
+const app_vue_vue_type_style_index_0_lang = "@keyframes loading-rotate{0%{transform:rotate(0)}to{transform:rotate(1turn)}}.loading-rotate{animation:loading-rotate 1s linear infinite}:root{--bg:#fff;--text:#1d2129;--author:#999;--meta:#86909c;--border:#f2f3f5;--fab-bg:rgba(245,245,247,.7);--input-bg:#f9fafb;--code-k:#00f;--code-v:#001080;--code-s:#a31515;--code-c:green;--code-ln:#858585}@media(prefers-color-scheme:dark){:root{--bg:#1a1a1c;--text:#e1e1e1;--author:#aaa;--meta:#777;--border:#2d2d2e;--fab-bg:rgba(45,45,46,.7);--input-bg:#252526;--code-k:#569cd6;--code-v:#9cdcfe;--code-s:#ce9178;--code-c:#6a9955}}.lock-scroll{overflow:hidden!important;padding-right:var(--scrollbar-width,0)}";
+
+export { app_vue_vue_type_style_index_0_lang as a };
+//# sourceMappingURL=entry-styles-2.mjs-C-nxa0Sf.mjs.map

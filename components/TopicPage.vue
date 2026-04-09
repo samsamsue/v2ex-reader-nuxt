@@ -289,50 +289,28 @@ const stopBlink = () => {
 }
 
 // --- 方法：代码模式 (取代全局双击事件) ---
-const handleDblClick = (e: MouseEvent) => {
-  if ((e.target as HTMLElement).closest('.fab')) return
-  
-  isModeCode.value = !isModeCode.value
-  const html = document.documentElement
-  
-  if (isModeCode.value) {
-    // 生成伪造代码行
-    let extra = ''
-    for (let i = 56; i < 160; i++) {
-      extra += `<div><span class="code-ln">${i}</span><span class="code-c">// LOG: Syncing with distributed shard 0x${(Math.random() * 0xFFFF << 0).toString(16).toUpperCase()}... OK</span></div>`
-    }
-    extraCodeHtml.value = extra
-    
-    lastScrollY = window.scrollY
-    html.style.scrollBehavior = 'auto'
-    document.body.style.overflow = 'hidden'
-    
-    // 异步确保 DOM 渲染后滚动
-    nextTick(() => {
-      const cm = document.getElementById('codeMode')
-      if (cm) cm.scrollTop = 200 + Math.random() * 300
-    })
-  } else {
-    document.body.style.overflow = ''
-    window.scrollTo(0, lastScrollY)
-    setTimeout(() => { html.style.scrollBehavior = 'smooth' }, 50)
-  }
-}
 
-// --- 数据抓取 ---
 const fetchTopic = async () => {
   loadingTopic.value = true
   try {
-    const res: any = await $fetch(`${props.topicApiBase}/${rawId.value}`, { query: { _t: Date.now() } })
-    if (props.requireAuth && res?.error === 'AUTH') {
-      needLogin.value = true
-      return
-    }
+    const res: any = await $fetch(`${props.topicApiBase}/${rawId.value}`, { 
+      query: { _t: Date.now() } 
+    })
+    
+    // 这里只处理 200 OK 的情况
     if (res?.title) {
       topicTitle.value = res.title
       topicContent.value = res.content || res.contentHtml || ''
     }
-  } catch {} finally {
+  } catch (error: any) {
+    // 检查状态码是否为 401，或者检查后端返回的具体错误结构
+    if (props.requireAuth && (error.response?.status === 401 || error.data?.error === 'AUTH')) {
+      needLogin.value = true
+    } else {
+      // 处理其他错误，例如弹窗提示网络异常等
+      console.error('获取话题失败:', error)
+    }
+  } finally {
     loadingTopic.value = false
   }
 }
@@ -423,7 +401,6 @@ onActivated(() => {
 
 onMounted(() => {
   drawFavicons()
-  window.addEventListener('dblclick', handleDblClick)
   window.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') stopBlink()
   })
@@ -486,7 +463,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('dblclick', handleDblClick)
   clearTimeout(pollTimer)
   clearTimeout(scrollTimer)
   stopBlink()

@@ -1,4 +1,4 @@
-import { c as defineEventHandler, r as readBody, e as setResponseStatus, h as setCookie } from '../../_/nitro.mjs';
+import { d as defineEventHandler, r as readBody, s as setResponseStatus, b as setCookie } from '../../_/nitro.mjs';
 import { A as ADMIN_PASS, a as COOKIE_VALUE, C as COOKIE_NAME } from '../../_/v2ex.mjs';
 import 'node:http';
 import 'node:https';
@@ -24,7 +24,7 @@ const login_post = defineEventHandler(async (event) => {
     setCookie(event, COOKIE_NAME, COOKIE_VALUE, {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
-      httpOnly: true,
+      // httpOnly: true,
       sameSite: "lax"
     });
     return { ok: true };

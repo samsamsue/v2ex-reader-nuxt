@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ from: string }>()
+const props = defineProps<{ from?: string }>()
 const password = ref('')
 const error = ref(false)
 
@@ -27,7 +27,7 @@ const submit = async () => {
     error.value = true
     return
   }
-  window.location.href = props.from || '/all'
+  window.location.href = props.from || '/'
 }
 </script>
 
