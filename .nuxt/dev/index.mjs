@@ -3108,7 +3108,7 @@ async function fetchAndParsePostFull(targetUrl, env) {
       const timeMatch = b.match(/class="ago" title=".*?">(.*?)<\/span>/);
       const contentBlock = (b.match(/<div class="reply_content">(.*?)<\/div>/s) || ["", ""])[1];
       const replyAuthor = (contentBlock.match(/<a href="\/member\/.*?">(.*?)<\/a>/) || ["", "Anon"])[1];
-      const replyHtml = contentBlock.replace(/@<a href="\/member\/.*?">(.*?)<\/a>/g, "");
+      const replyHtml = contentBlock.replace(/@<a href="\/member\/.*?">(.*?)<\/a>/g, '<span class="reply-author">@$1</span>');
       const pid = (contentBlock.match(/@<a href="\/member\/.*?">(.*?)<\/a>/) || [null, null])[1];
       const likes = (b.match(/alt="❤️" \/>\s*(\d+)/) || [0, 0])[1];
       const rObj = {
