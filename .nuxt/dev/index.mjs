@@ -3082,7 +3082,7 @@ async function fetchAndParseList(url, env) {
       items.push({
         code: encodeId(titleMatch[1]),
         title: titleMatch[2].trim(),
-        author: authMatch ? authMatch[1].trim() : "Anon",
+        author: authMatch ? authMatch[1].trim() : "",
         replies: repliesMatch ? repliesMatch[1] : "0",
         time: timeMatch ? timeMatch[1].trim() : "\u521A\u521A"
       });
@@ -3120,10 +3120,10 @@ async function fetchAndParsePostFull(targetUrl, env) {
   pagesHtml.forEach((html) => {
     const blocks = html.substring(html.indexOf('<div id="replies"')).match(/<td width="auto" valign="top" align="left">.*?<\/td>/gs) || [];
     blocks.forEach((b) => {
-      const auth = (b.match(/strong><a href="\/member\/.*?">(.*?)<\/a><\/strong>/) || ["", "Anon"])[1];
+      const auth = (b.match(/strong><a href="\/member\/.*?">(.*?)<\/a><\/strong>/) || ["", ""])[1];
       const timeMatch = b.match(/class="ago" title=".*?">(.*?)<\/span>/);
       const contentBlock = (b.match(/<div class="reply_content">(.*?)<\/div>/s) || ["", ""])[1];
-      const replyAuthor = (contentBlock.match(/<a href="\/member\/.*?">(.*?)<\/a>/) || ["", "Anon"])[1];
+      const replyAuthor = (contentBlock.match(/<a href="\/member\/.*?">(.*?)<\/a>/) || ["", ""])[1];
       const replyHtml = contentBlock.replace(/@<a href="\/member\/.*?">(.*?)<\/a>/g, '<span class="reply-author">@$1</span>');
       const pid = (contentBlock.match(/@<a href="\/member\/.*?">(.*?)<\/a>/) || [null, null])[1];
       const likes = (b.match(/alt="❤️" \/>\s*(\d+)/) || [0, 0])[1];
