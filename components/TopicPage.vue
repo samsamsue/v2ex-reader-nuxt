@@ -2,68 +2,7 @@
   <div>
     <LoginBox v-if="requireAuth && needLogin" :from="fromPath" />
     <template v-else>
-      
-      <div id="codeMode" v-show="isModeCode">
-        <div style="margin-bottom:15px; color:var(--code-k); border-bottom:1px solid var(--border); padding-bottom:5px; font-weight:bold;">Infrastructure/Network/LoadBalancer.php</div>
-        <div><span class="code-ln">1</span><span class="code-k">&lt;?php</span></div>
-        <div><span class="code-ln">2</span><span class="code-k">namespace</span> App\Infrastructure\Network;</div>
-        <div><span class="code-ln">3</span></div>
-        <div><span class="code-ln">4</span><span class="code-k">class</span> <span class="code-v">LoadBalancer</span> {</div>
-        <div><span class="code-ln">5</span>    <span class="code-k">private</span> <span class="code-v">$nodes</span> = [];</div>
-        <div><span class="code-ln">6</span>    <span class="code-k">private</span> <span class="code-v">$healthyNodes</span> = [];</div>
-        <div><span class="code-ln">7</span></div>
-        <div><span class="code-ln">8</span>    <span class="code-k">public function</span> <span class="code-v">__construct</span>(<span class="code-k">array</span> <span class="code-v">$config</span>) {</div>
-        <div><span class="code-ln">9</span>        <span class="code-v">$this</span>-><span class="code-v">nodes</span> = <span class="code-v">$config</span>[<span class="code-s">'cluster_endpoints'</span>];</div>
-        <div><span class="code-ln">10</span>        <span class="code-v">$this</span>-><span class="code-v">checkHealth</span>();</div>
-        <div><span class="code-ln">11</span>    }</div>
-        <div><span class="code-ln">12</span></div>
-        <div><span class="code-ln">13</span>    <span class="code-k">private function</span> <span class="code-v">checkHealth</span>() {</div>
-        <div><span class="code-ln">14</span>        <span class="code-k">foreach</span> (<span class="code-v">$this</span>-><span class="code-v">nodes</span> <span class="code-k">as</span> <span class="code-v">$node</span>) {</div>
-        <div><span class="code-ln">15</span>            <span class="code-v">$status</span> = <span class="code-v">curl_init</span>(<span class="code-v">$node</span> . <span class="code-s">'/health'</span>);</div>
-        <div><span class="code-ln">16</span>            <span class="code-k">if</span> (<span class="code-v">curl_exec</span>(<span class="code-v">$status</span>)) {</div>
-        <div><span class="code-ln">17</span>                <span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>[] = <span class="code-v">$node</span>;</div>
-        <div><span class="code-ln">18</span>            }</div>
-        <div><span class="code-ln">19</span>        }</div>
-        <div><span class="code-ln">20</span>    }</div>
-        <div><span class="code-ln">21</span></div>
-        <div><span class="code-ln">22</span>    <span class="code-k">public function</span> <span class="code-v">getNextNode</span>() {</div>
-        <div><span class="code-ln">23</span>        <span class="code-k">return</span> <span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>[<span class="code-v">array_rand</span>(<span class="code-v">$this</span>-><span class="code-v">healthyNodes</span>)];</div>
-        <div><span class="code-ln">24</span>    }</div>
-        <div><span class="code-ln">25</span>}</div>
-        <div><span class="code-ln">26</span></div>
-        <div><span class="code-ln">27</span><span class="code-c">// --- Node.js Event Loop Monitor ---</span></div>
-        <div><span class="code-ln">28</span><span class="code-k">const</span> <span class="code-v">os</span> = <span class="code-k">require</span>(<span class="code-s">'os'</span>);</div>
-        <div><span class="code-ln">29</span><span class="code-k">const</span> <span class="code-v">v8</span> = <span class="code-k">require</span>(<span class="code-s">'v8'</span>);</div>
-        <div><span class="code-ln">30</span></div>
-        <div><span class="code-ln">31</span><span class="code-k">setInterval</span>(() => {</div>
-        <div><span class="code-ln">32</span>    <span class="code-k">const</span> <span class="code-v">mem</span> = <span class="code-v">process</span>.<span class="code-v">memoryUsage</span>();</div>
-        <div><span class="code-ln">33</span>    <span class="code-k">if</span> (<span class="code-v">mem</span>.heapUsed > <span class="code-v">mem</span>.heapTotal * <span class="code-v">0.8</span>) {</div>
-        <div><span class="code-ln">34</span>        <span class="code-v">console</span>.<span class="code-v">warn</span>(<span class="code-s">'[GC_WARN] Heap usage near limit'</span>);</div>
-        <div><span class="code-ln">35</span>        <span class="code-v">v8</span>.<span class="code-v">setFlagsFromString</span>(<span class="code-s">'--expose-gc'</span>);</div>
-        <div><span class="code-ln">36</span>        <span class="code-k">global</span>.<span class="code-v">gc</span> && <span class="code-k">global</span>.<span class="code-v">gc</span>();</div>
-        <div><span class="code-ln">37</span>    }</div>
-        <div><span class="code-ln">38</span>}, <span class="code-v">10000</span>);</div>
-        <div><span class="code-ln">39</span></div>
-        <div><span class="code-ln">40</span><span class="code-k">function</span> <span class="code-v">syncStream</span>(<span class="code-v">buffer</span>) {</div>
-        <div><span class="code-ln">41</span>    <span class="code-k">return</span> <span class="code-k">new</span> <span class="code-v">Promise</span>((<span class="code-v">resolve</span>) => {</div>
-        <div><span class="code-ln">42</span>        <span class="code-v">setTimeout</span>(() => {</div>
-        <div><span class="code-ln">43</span>            <span class="code-v">console</span>.<span class="code-v">log</span>(<span class="code-s">'Stream synced successfully'</span>);</div>
-        <div><span class="code-ln">44</span>            <span class="code-v">resolve</span>(<span class="code-k">true</span>);</div>
-        <div><span class="code-ln">45</span>        }, <span class="code-v">500</span>);</div>
-        <div><span class="code-ln">46</span>    });</div>
-        <div><span class="code-ln">47</span>}</div>
-        <div><span class="code-ln">48</span></div>
-        <div><span class="code-ln">49</span><span class="code-c">// INFO: Listening on port 8080</span></div>
-        <div><span class="code-ln">50</span><span class="code-c">// LOG: Handshaking with internal node... OK</span></div>
-        <div><span class="code-ln">51</span><span class="code-c">// [REPEATED LOG BLOCKS FOR SCROLL DEPTH]</span></div>
-        <div><span class="code-ln">52</span><span class="code-c">// 2026-03-31 10:45:01 Processing packet 0xAB21</span></div>
-        <div><span class="code-ln">53</span><span class="code-c">// 2026-03-31 10:45:02 Processing packet 0xAB22</span></div>
-        <div><span class="code-ln">54</span><span class="code-c">// 2026-03-31 10:45:03 Processing packet 0xAB23</span></div>
-        <div><span class="code-ln">55</span><span class="code-c">// ... (代码将持续滚动直至 150 行)</span></div>
-        <div id="extraCode" v-html="extraCodeHtml"></div>
-      </div>
-
-      <div id="mainContent" v-show="!isModeCode">
+      <div id="mainContent">
         <div id="newMsgNotify" :class="{ show: notifyVisible }" @click="refreshReplies">
           <svg v-if="loadingReplies" class="loading-rotate" style="width:1rem;height:1rem;"  xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
           检测到新回复
@@ -325,7 +264,7 @@ const fetchReplies = async (silent = false): Promise<boolean> => {
       needLogin.value = true
       return false
     }
-    
+    notifyVisible.value = false
     const prevIds = allIds.value.slice()
     replies.value = res?.replies || []
     opAuthor.value = res?.opAuthor || null
@@ -839,6 +778,8 @@ body {
 }
 .skeleton-block {
   padding: 6px 0;
+  height:calc(100vh - 80px);
+  box-sizing: border-box;
 }
 .skeleton-line {
   height: 14px;
