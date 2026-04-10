@@ -397,6 +397,8 @@ let scrollTimer: any = null
 
 onActivated(() => {
   checkHistory()
+  fetchTopic()
+  fetchReplies()
 })
 
 onMounted(() => {
@@ -405,9 +407,6 @@ onMounted(() => {
     if (document.visibilityState === 'visible') stopBlink()
   })
 
-  // 初始加载
-  fetchTopic()
-  fetchReplies()
 
   // 滚动监听：记录阅读进度
   window.addEventListener('scroll', () => {

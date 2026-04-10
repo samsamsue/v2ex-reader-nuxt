@@ -1,23 +1,8 @@
 ﻿<template>
   <div class="page-container">
     <LoginBox v-if="needLogin" :from="fromPath" />
-    
     <template v-else>
-      <Transition name="fade">
-        <div v-if="isModeCode" id="codeMode" @dblclick="toggleCodeMode">
-          <div class="code-header">Infrastructure/Network/LoadBalancer.php</div>
-          <div v-for="(line, index) in codeLines" :key="index">
-            <span class="code-ln">{{ index + 1 }}</span>
-            <span :class="line.class" v-html="line.content"></span>
-          </div>
-          <div v-for="(log, idx) in dynamicLogs" :key="'log-'+idx">
-            <span class="code-ln">{{ codeLines.length + idx + 1 }}</span>
-            <span class="code-c">{{ log }}</span>
-          </div>
-        </div>
-      </Transition>
-
-      <div id="mainContent" v-show="!isModeCode" @dblclick="toggleCodeMode">
+      <div id="mainContent" >
         <div class="fab-group">
           <div class="fab" @click="openNotif" style="position:relative;" title="消息提醒">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
@@ -86,33 +71,8 @@ import { lockScroll, unLockScroll } from '../utils/common'
 const route = useRoute()
 const needLogin = ref(false)
 const items = ref<any[]>([])
-const loading = ref(true)
-const lastViewedCode = ref<string | null>(null)
+const loading = ref(false)
 
-onMounted(() => {
-  items.value = JSON.parse(localStorage.getItem('v2_first_list') || '[]')
-})
-
-/** 2. 程序员模式 (Code Mode) */
-const isModeCode = ref(false)
-const dynamicLogs = ref<string[]>([])
-const codeLines = [
-  { class: 'code-k', content: '&lt;?php' },
-  { class: '', content: '<span class="code-k">namespace</span> App\\Infrastructure\\Network;' },
-  { class: '', content: '' },
-  { class: '', content: '<span class="code-k">class</span> <span class="code-v">LoadBalancer</span> {' },
-  { class: '', content: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-k">private</span> <span class="code-v">$nodes</span> = [];' }
-]
-
-const toggleCodeMode = () => {
-  isModeCode.value = !isModeCode.value
-  document.body.style.overflow = isModeCode.value ? 'hidden' : ''
-  if (isModeCode.value) {
-    dynamicLogs.value = Array.from({ length: 100 }, () => 
-      `// LOG: Syncing with distributed shard 0x${Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase()}... OK`
-    )
-  }
-}
 
 /** 3. 消息提醒逻辑 */
 const showNotif = ref(false)
@@ -148,6 +108,7 @@ const canLoadMore = ref(false)
 const isLoadingMore = ref(false) // 新增：用于防止接口并发请求
 const loaderEl = ref<HTMLElement | null>(null)
 const loaderText = ref('加载中...')
+const lastViewedCode = ref<string | null>(null)
 
 const checkHighlight = () => {
   const lastCode = sessionStorage.getItem('v2_last_code')
@@ -257,8 +218,10 @@ const loadList = async ()=> {
 
 /** 7. 生命周期与后退监听 */
 onMounted(async () => {
+  items.value = JSON.parse(localStorage.getItem('v2_first_list') || '[]')
   
   loadList()
+  
   checkHighlight()
 
   // 监听浏览器后退时的 bfcache

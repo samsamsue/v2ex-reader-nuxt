@@ -7,7 +7,7 @@ import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent
 import { escapeHtml } from 'file://C:/Users/Administrator/Documents/XCode/v2/node_modules/.store/@vue+shared@3.5.32/node_modules/@vue/shared/dist/shared.cjs.js';
 import { promises, existsSync, readFileSync } from 'node:fs';
 import MarkdownIt from 'file://C:/Users/Administrator/Documents/XCode/v2/node_modules/.store/markdown-it@14.1.1/node_modules/markdown-it/index.mjs';
-import { ProxyAgent, setGlobalDispatcher } from 'file://C:/Users/Administrator/Documents/XCode/v2/node_modules/.store/undici@6.24.1/node_modules/undici/index.js';
+import { ProxyAgent, setGlobalDispatcher, Agent } from 'file://C:/Users/Administrator/Documents/XCode/v2/node_modules/.store/undici@6.24.1/node_modules/undici/index.js';
 import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'file://C:/Users/Administrator/Documents/XCode/v2/node_modules/.store/vue-bundle-renderer@2.2.0/node_modules/vue-bundle-renderer/dist/runtime.mjs';
 import { parseURL, withoutBase, joinURL, getQuery, withQuery, withTrailingSlash, decodePath, withLeadingSlash, withoutTrailingSlash, joinRelativeURL } from 'file://C:/Users/Administrator/Documents/XCode/v2/node_modules/.store/ufo@1.6.3/node_modules/ufo/dist/index.mjs';
 import { renderToString } from 'file://C:/Users/Administrator/Documents/XCode/v2/node_modules/.store/vue@3.5.32/node_modules/vue/server-renderer/index.mjs';
@@ -2137,8 +2137,24 @@ const _1etyPQVhtq5_yiaHkzeoVw4AGqOJf8ttF0GbRaFlEw = defineNitroPlugin(() => {
   const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || "";
   if (proxyUrl) {
     console.log(`[Network] \u4EE3\u7406\u5DF2\u751F\u6548\uFF0C\u63A5\u7BA1\u6D41\u91CF -> ${proxyUrl}`);
-    const proxyAgent = new ProxyAgent(proxyUrl);
+    const proxyAgent = new ProxyAgent({
+      uri: proxyUrl,
+      // 关键 1：设置严格的超时时间，绝不允许无限期 Pending (例如 5 秒没连上直接报错)
+      connectTimeout: 5e3,
+      headersTimeout: 5e3,
+      bodyTimeout: 5e3,
+      // 关键 2：配置合理的连接池，防止连接泄露
+      connections: 100,
+      pipelining: 1
+    });
     setGlobalDispatcher(proxyAgent);
+  } else {
+    const defaultAgent = new Agent({
+      connectTimeout: 5e3,
+      headersTimeout: 5e3,
+      bodyTimeout: 5e3
+    });
+    setGlobalDispatcher(defaultAgent);
   }
 });
 
