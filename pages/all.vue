@@ -216,6 +216,7 @@ const loadList = async ()=> {
   loading.value = false
 }
 
+
 /** 7. 生命周期与后退监听 */
 onMounted(async () => {
   items.value = JSON.parse(localStorage.getItem('v2_first_list') || '[]')
@@ -242,6 +243,10 @@ onMounted(async () => {
 // 处理 Nuxt 路由后退时的激活
 onActivated(() => {
   checkHighlight()
+})
+
+onDeactivated(() => {
+
 })
 
 useHead({ title: 'V2EX Reader' })

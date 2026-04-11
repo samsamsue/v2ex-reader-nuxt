@@ -1,4 +1,4 @@
-import { d as defineEventHandler, c as getRouterParam, s as setResponseStatus } from '../../../_/nitro.mjs';
+import { c as defineEventHandler, i as getRouterParam, e as setResponseStatus } from '../../../_/nitro.mjs';
 import MarkdownIt from 'markdown-it';
 import { s as safeFetch, E as ENV, c as extractTopicContentHtml, d as buildSubtleBlocks } from '../../../_/v2ex.mjs';
 import 'node:http';

@@ -45,7 +45,7 @@
           <div class="skeleton-line w-70"></div>
         </div>
 
-        <NuxtLink v-if="showShareLink && shareUrl && !loadingTopic" :to="shareUrl" class="end-link">—— END ——</NuxtLink>
+        <NuxtLink v-if="showShareLink && shareUrl && (!loadingTopic ||loaded)" :to="shareUrl" class="end-link">—— END ——</NuxtLink>
 
         <div v-if="repliesReady && total > 0" class="comments">
           <div class="comments-title">讨论 (<span id="count">{{ total }}</span>)</div>
@@ -99,6 +99,7 @@ const loadingTopic = ref(true)
 const loadingReplies = ref(true)
 const topicTitle = ref('')
 const topicContent = ref('')
+const loaded = ref(false)
 const opAuthor = ref<string | null>(null)
 const replies = ref<any[]>([])
 const total = ref(0)
@@ -239,7 +240,9 @@ const fetchTopic = async () => {
     // 这里只处理 200 OK 的情况
     if (res?.title) {
       topicTitle.value = res.title
+	  if(!props.showQr) document.title = `${res.title}`
       topicContent.value = res.content || res.contentHtml || ''
+	  loaded.value = true
     }
   } catch (error: any) {
     // 检查状态码是否为 401，或者检查后端返回的具体错误结构
@@ -334,21 +337,9 @@ const toggleQr = async () => {
 let pollTimer: any = null
 let scrollTimer: any = null
 
-onActivated(() => {
-  checkHistory()
-  fetchTopic()
-  fetchReplies()
-})
-
-onMounted(() => {
-  drawFavicons()
-  window.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') stopBlink()
-  })
 
 
-  // 滚动监听：记录阅读进度
-  window.addEventListener('scroll', () => {
+const listenScroll = () => {
     if (isModeCode.value) return
     
     // 【修复核心】：如果历史提示还在显示，说明用户还没决定是否跳转，此时屏蔽清除或覆盖逻辑
@@ -376,10 +367,18 @@ onMounted(() => {
       }
       if (currentFloor) saveFloor(codeParam.value, currentFloor)
     }, 300)
-  })
+}
 
-  // 轮询新回复
-  const poll = async () => {
+const listenVisible = () => {
+  if (document.visibilityState === 'visible') stopBlink()
+}
+
+const listPageShow = (e) => {
+    if ((e as any).persisted) refreshReplies()
+  }
+
+// 轮询新回复
+const poll = async () => {
     if (isModeCode.value || document.visibilityState === 'hidden') {
       pollTimer = setTimeout(poll, 10000)
       return
@@ -392,18 +391,45 @@ onMounted(() => {
       }
     } catch {}
     pollTimer = setTimeout(poll, 50000 + Math.random() * 20000)
+} 
+
+
+const init = ()=> {
+	window.addEventListener('visibilitychange', listenVisible )
+	window.addEventListener('scroll', listenScroll)
+	window.addEventListener('pageshow', listPageShow )
+	checkHistory()
+	fetchTopic()
+	fetchReplies()
+	pollTimer = setTimeout(poll, 60000)
+	drawFavicons()
+}
+
+const isFirstActivated = ref(true);
+
+onMounted(() => {
+  // 只在第一次挂载时执行
+  init();
+});
+
+onActivated(() => {
+  if (isFirstActivated.value) {
+    // 第一次激活（也就是 mount 之后触发的第一次 onActivated）跳过
+    isFirstActivated.value = false;
+    return;
   }
-  pollTimer = setTimeout(poll, 60000)
+  // 后续每次 keep-alive 激活时执行
+  init();
+});
 
-  window.addEventListener('pageshow', (e) => {
-    if ((e as any).persisted) refreshReplies()
-  })
-})
-
-onUnmounted(() => {
+onDeactivated(() => {
   clearTimeout(pollTimer)
   clearTimeout(scrollTimer)
+  window.removeEventListener('visibilitychange', listenVisible )
+  window.removeEventListener('scroll', listenScroll)
+  window.removeEventListener('pageshow', listPageShow )
   stopBlink()
+  console.log('TopicPage deactivated')
 })
 
 // --- 监听 ID 变化 ---
