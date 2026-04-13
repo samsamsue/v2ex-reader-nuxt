@@ -27,7 +27,7 @@
         </span>
         <span style="margin-left: 6px; opacity: 0.4;">#{{ node.id }}</span>
       </div>
-      <div class="reply-txt" v-html="decorateText(node.replyHtml)"></div>
+      <div class="reply-txt" v-html="node.replyHtml"></div>
       <CommentTree
         v-if="node.children && node.children.length"
         :nodes="node.children"
@@ -48,11 +48,6 @@ const nodeStyle = () => {
   return level.value === 0
     ? 'padding: 18px 0; border-bottom: 1px solid var(--border);'
     : 'padding-top: 12px; padding-left: 1.2rem; border-left: 1.5px solid var(--border);'
-}
-
-const decorateText = (html: string) => {
-  if (!html) return ''
-  return html.replace(/(^|[^"'\w&;])#(\d+)\b/g, '$1<a onclick="jumpToFloor(event, $2)" style="cursor:pointer;" title="点击跳转到 $2 楼">#$2</a>')
 }
 
 const jumpToFloor = (floor: number) => {

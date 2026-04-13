@@ -2,7 +2,7 @@
   <div>
     <LoginBox v-if="requireAuth && needLogin" :from="fromPath" :title="loginTitle" />
     <template v-else>
-      <div id="mainContent">
+      <div id="mainContent" @click="handleContentClick">
         <div id="newMsgNotify" :class="{ show: notifyVisible }" @click="refreshReplies">
           <svg v-if="loadingReplies" class="loading-rotate" style="width:1rem;height:1rem;"  xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
           检测到新回复
@@ -61,8 +61,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted, nextTick, onActivated, onDeactivated } from 'vue'
 import QRCode from 'qrcode'
+import { enhanceReplyTreeHtml, enhanceRichHtml } from '../utils/rich-html'
+import { applyCodeHighlighting } from '../utils/code-highlight'
 
 const props = withDefaults(defineProps<{
   code: string
@@ -191,6 +193,11 @@ const goBack = () => {
   else navigateTo(props.backTo || '/all')
 }
 
+const refreshCodeHighlighting = async () => {
+  await nextTick()
+  applyCodeHighlighting(document.getElementById('mainContent'))
+}
+
 const checkHistory = () => {
   const saved = getFloor(codeParam.value)
   if (saved) {
@@ -229,6 +236,56 @@ const jumpToFloor = (event: Event | null, floor: number | string) => {
   el.classList.remove('flash-highlight')
   void el.offsetWidth
   el.classList.add('flash-highlight')
+}
+
+const handleContentClick = async (event: Event) => {
+  const target = event.target as HTMLElement | null
+  if (!target) return
+
+  const floorLink = target.closest('[data-floor-jump]') as HTMLElement | null
+  if (floorLink) {
+    event.preventDefault()
+    const floor = floorLink.getAttribute('data-floor-jump')
+    if (floor) jumpToFloor(event, floor)
+    return
+  }
+
+  const copyBtn = target.closest('[data-code-copy]') as HTMLButtonElement | null
+  if (!copyBtn) return
+
+  event.preventDefault()
+  const codeEl = copyBtn.closest('.code-preview')?.querySelector('pre code')
+  const codeText = codeEl?.textContent || ''
+  if (!codeText) return
+
+  try {
+    await navigator.clipboard.writeText(codeText)
+    const oldText = copyBtn.textContent || '复制'
+    copyBtn.textContent = '已复制'
+    window.setTimeout(() => {
+      copyBtn.textContent = oldText
+    }, 1200)
+  } catch {
+    copyBtn.textContent = '复制失败'
+    window.setTimeout(() => {
+      copyBtn.textContent = '复制'
+    }, 1200)
+  }
+}
+
+const listenKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Escape' || !props.showBack) return
+
+  const target = event.target as HTMLElement | null
+  if (target) {
+    const tagName = target.tagName
+    if (target.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') {
+      return
+    }
+  }
+
+  event.preventDefault()
+  goBack()
 }
 
 // --- 方法：Favicon 闪烁 ---
@@ -276,9 +333,10 @@ const fetchTopic = async () => {
     if (res?.title) {
       topicTitle.value = res.title
 	  if(!props.showQr) document.title = `${res.title}`
-      topicContent.value = res.content || res.contentHtml || ''
+      topicContent.value = enhanceRichHtml(res.content || res.contentHtml || '', { enableFloorLinks: true })
 	  loaded.value = true
       errorMessage.value = ''
+      await refreshCodeHighlighting()
     } else if (res?.error) {
       errorMessage.value = res.message || res.error
     }
@@ -311,11 +369,12 @@ const fetchReplies = async (silent = false): Promise<boolean> => {
     }
     notifyVisible.value = false
     const prevIds = allIds.value.slice()
-    replies.value = res?.replies || []
+    replies.value = enhanceReplyTreeHtml(res?.replies || [])
     opAuthor.value = res?.opAuthor || null
     total.value = res?.total || 0
     allIds.value = res?.allIds || []
     replyNotice.value = res?.replyNotice || ''
+    await refreshCodeHighlighting()
     
     if (silent && prevIds.length) {
       const newIds = allIds.value.filter((id) => !prevIds.includes(id))
@@ -442,6 +501,7 @@ const init = ()=> {
 	window.addEventListener('visibilitychange', listenVisible )
 	window.addEventListener('scroll', listenScroll)
 	window.addEventListener('pageshow', listPageShow )
+	window.addEventListener('keydown', listenKeydown)
 	checkHistory()
 	fetchTopic()
 	fetchReplies()
@@ -473,6 +533,7 @@ onDeactivated(() => {
   window.removeEventListener('visibilitychange', listenVisible )
   window.removeEventListener('scroll', listenScroll)
   window.removeEventListener('pageshow', listPageShow )
+  window.removeEventListener('keydown', listenKeydown)
   stopBlink()
   console.log('TopicPage deactivated')
 })
@@ -480,6 +541,7 @@ onDeactivated(() => {
 onUnmounted(() => {
   if (typeof window !== 'undefined') {
     delete (window as any).jumpToFloor
+    window.removeEventListener('keydown', listenKeydown)
   }
 })
 
@@ -590,6 +652,107 @@ body {
 
 .content h3 {
   font-size: 1.05rem;
+}
+
+.content code,
+.reply-txt code {
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.content :not(pre) > code,
+.reply-txt :not(pre) > code {
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(127, 127, 127, 0.12);
+  font-size: 0.92em;
+}
+
+.code-preview {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--input-bg);
+}
+
+.code-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.code-preview-lang {
+  color: var(--meta);
+  font-size: 0.72rem;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
+.code-preview-copy {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--meta);
+  font: inherit;
+  font-size: 0.76rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.code-preview-copy:hover {
+  color: var(--text);
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.code-preview-pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  background: transparent;
+}
+
+.code-preview-pre code {
+  display: block;
+  white-space: pre;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  tab-size: 2;
+}
+
+.code-token-keyword {
+  color: var(--code-k);
+}
+
+.code-token-string {
+  color: var(--code-s);
+}
+
+.code-token-comment {
+  color: var(--code-c);
+}
+
+.code-token-number {
+  color: var(--code-v);
+}
+
+.code-token-attr {
+  color: var(--code-v);
+}
+
+.code-token-tag {
+  color: var(--code-k);
+}
+
+.floor-jump-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(127, 127, 127, 0.35);
+  cursor: pointer;
 }
 
 .content-title {
