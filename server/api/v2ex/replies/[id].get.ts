@@ -1,5 +1,5 @@
 import { defineEventHandler, getCookie, getRouterParam, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, createUpstreamErrorPayload, fetchRepliesById } from '../../utils/linuxdo'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, fetchAndParsePostFull } from '../../../utils/v2ex'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)
@@ -15,11 +15,11 @@ export default defineEventHandler(async (event) => {
     return { error: 'ID_INVALID' }
   }
 
-  try {
-    return await fetchRepliesById(parseInt(id, 10), ENV)
-  } catch (error) {
-    const payload = createUpstreamErrorPayload(error)
-    setResponseStatus(event, payload.statusCode)
-    return payload.body
+  const postData = await fetchAndParsePostFull(`https://www.v2ex.com/t/${id}`, ENV)
+  return {
+    opAuthor: postData.opAuthor,
+    replies: postData.replies,
+    total: postData.total,
+    allIds: postData.allIds
   }
 })

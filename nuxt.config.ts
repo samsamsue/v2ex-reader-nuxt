@@ -1,4 +1,4 @@
-﻿import { config } from 'dotenv'
+import { config } from 'dotenv'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 import { existsSync } from 'fs'
@@ -12,11 +12,23 @@ if (existsSync(envPath)) {
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   ssr: true,
+  experimental: {
+    appManifest: false
+  },
   nitro: {
-    preset: 'node-server'
+    preset: 'node-server',
+    imports: {
+      exclude: [
+        /server[\\/]+utils[\\/]+linuxdo/,
+        /server[\\/]+utils[\\/]+v2ex/
+      ]
+    }
   },
   runtimeConfig: {
-    V2_COOKIE: process.env.V2_COOKIE || '',
-    PASSWORD: process.env.PASSWORD || ''
+    LINUXDO_COOKIE: process.env.LINUXDO_COOKIE || process.env.V2_COOKIE || '',
+    PASSWORD: process.env.PASSWORD || '',
+    public: {
+      hasPassword: Boolean(process.env.PASSWORD)
+    }
   }
 })

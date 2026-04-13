@@ -1,5 +1,5 @@
 import { defineEventHandler, getQuery, getCookie, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, createUpstreamErrorPayload, fetchLatestTopics } from '../utils/linuxdo'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, fetchAndParseList } from '../../utils/v2ex'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)
@@ -11,12 +11,7 @@ export default defineEventHandler(async (event) => {
 
   const q = getQuery(event)
   const p = parseInt(String(q.p || 0), 10)
-  try {
-    const listData = await fetchLatestTopics(p, ENV)
-    return { items: listData.items, count: listData.count }
-  } catch (error) {
-    const payload = createUpstreamErrorPayload(error)
-    setResponseStatus(event, payload.statusCode)
-    return payload.body
-  }
+  const target = p === 0 ? 'https://www.v2ex.com/?tab=all' : `https://www.v2ex.com/recent?p=${p}`
+  const listData = await fetchAndParseList(target, ENV)
+  return { items: listData.items, count: listData.count }
 })

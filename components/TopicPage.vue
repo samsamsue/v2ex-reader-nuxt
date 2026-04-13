@@ -1,6 +1,6 @@
 <template>
   <div>
-    <LoginBox v-if="requireAuth && needLogin" :from="fromPath" />
+    <LoginBox v-if="requireAuth && needLogin" :from="fromPath" :title="loginTitle" />
     <template v-else>
       <div id="mainContent">
         <div id="newMsgNotify" :class="{ show: notifyVisible }" @click="refreshReplies">
@@ -20,7 +20,7 @@
           <div v-if="showQr" id="qrPopup" v-show="qrVisible" @click.stop>
             <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR" width="140" height="140" />
           </div>
-          <div v-if="showOpenOriginal" class="fab" @click.stop="openOriginal" title="在 V2EX 原站打开">
+          <div v-if="showOpenOriginal" class="fab" @click.stop="openOriginal" title="在 linux.do 原站打开">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 16 4-4-4-4"/><path d="M3 12h11"/><path d="M3 8V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/></svg>
           </div>
           <div v-if="showBack" id="backBtn" class="fab" @click.stop="goBack">
@@ -35,6 +35,7 @@
         </div>
 
         <h1 :class="compactTitle ? 'content-title' : ''">{{ topicTitle || ' ' }}</h1>
+        <div v-if="errorMessage" class="error-panel">{{ errorMessage }}</div>
 
         <div v-if="topicReady" class="content" v-html="topicContent"></div>
         <div v-else-if="loadingTopic && !topicContent" class="content skeleton-block">
@@ -49,6 +50,7 @@
 
         <div v-if="repliesReady && total > 0" class="comments">
           <div class="comments-title">讨论 (<span id="count">{{ total }}</span>)</div>
+          <div v-if="replyNotice" class="reply-notice">{{ replyNotice }}</div>
           <div id="comments">
             <CommentTree :nodes="replies" :opAuthor="opAuthor" />
           </div>
@@ -78,6 +80,10 @@ const props = withDefaults(defineProps<{
   pageTitle?: string
   pollBase?: string
   compactTitle?: boolean
+  shareBasePath?: string
+  shareCodePrefix?: string
+  openOriginalTemplate?: string
+  loginTitle?: string
 }>(), {
   requireAuth: false,
   fromPath: '/all',
@@ -87,8 +93,12 @@ const props = withDefaults(defineProps<{
   showBack: false,
   backTo: '/all',
   showOpenOriginal: false,
-  pageTitle: 'V2EX Reader',
-  compactTitle: false
+  pageTitle: 'linux.do Reader',
+  compactTitle: false,
+  shareBasePath: '/s',
+  shareCodePrefix: '',
+  openOriginalTemplate: 'https://linux.do/t/topic/{id}',
+  loginTitle: 'linux.do Reader'
 })
 
 useHead({ title: props.pageTitle })
@@ -100,10 +110,12 @@ const loadingReplies = ref(true)
 const topicTitle = ref('')
 const topicContent = ref('')
 const loaded = ref(false)
+const errorMessage = ref('')
 const opAuthor = ref<string | null>(null)
 const replies = ref<any[]>([])
 const total = ref(0)
 const allIds = ref<number[]>([])
+const replyNotice = ref('')
 const notifyVisible = ref(false)
 const historyFloor = ref<string | null>(null)
 const showHistoryPrompt = ref(false)
@@ -118,7 +130,7 @@ let lastScrollY = 0
 let favInterval: any = null
 let normalFav = ''
 let alertFav = ''
-const SCROLL_KEY = 'v2_floor_pos'
+const SCROLL_KEY = 'linuxdo_floor_pos'
 
 // --- 计算属性 ---
 const codeParam = computed(() => props.code || '')
@@ -133,7 +145,8 @@ const shareUrl = computed(() => {
   if (!props.shareSalt) return ''
   const raw = rawId.value || 0
   const code = (raw ^ props.shareSalt).toString(36)
-  return `/s/${code}`
+  const basePath = (props.shareBasePath || '/s').replace(/\/+$/, '')
+  return `${basePath}/${props.shareCodePrefix || ''}${code}`
 })
 const topicReady = computed(() => !!topicContent.value || !loadingTopic.value)
 const repliesReady = computed(() => replies.value.length > 0 || total.value > 0 || !loadingReplies.value)
@@ -168,7 +181,11 @@ const removeFloor = (id: string) => {
 
 // --- 方法：UI 操作 ---
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
-const openOriginal = () => window.open(`https://www.v2ex.com/t/${rawId.value}`, '_blank')
+const openOriginal = () => {
+  const template = props.openOriginalTemplate || 'https://linux.do/t/topic/{id}'
+  const url = template.replace('{id}', String(rawId.value))
+  window.open(url, '_blank')
+}
 const goBack = () => {
   if (document.referrer && document.referrer.includes(location.host)) history.back()
   else navigateTo(props.backTo || '/all')
@@ -194,6 +211,24 @@ const jumpToHistory = () => {
     el.classList.add('flash-highlight')
   }
   dismissHistory()
+}
+
+const jumpToFloor = (event: Event | null, floor: number | string) => {
+  if (event) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const floorId = String(floor || '')
+  if (!floorId) return
+
+  const el = document.getElementById('c_' + floorId)
+  if (!el) return
+
+  window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
+  el.classList.remove('flash-highlight')
+  void el.offsetWidth
+  el.classList.add('flash-highlight')
 }
 
 // --- 方法：Favicon 闪烁 ---
@@ -243,6 +278,9 @@ const fetchTopic = async () => {
 	  if(!props.showQr) document.title = `${res.title}`
       topicContent.value = res.content || res.contentHtml || ''
 	  loaded.value = true
+      errorMessage.value = ''
+    } else if (res?.error) {
+      errorMessage.value = res.message || res.error
     }
   } catch (error: any) {
     // 检查状态码是否为 401，或者检查后端返回的具体错误结构
@@ -267,12 +305,17 @@ const fetchReplies = async (silent = false): Promise<boolean> => {
       needLogin.value = true
       return false
     }
+    if (res?.error) {
+      errorMessage.value = res.message || res.error
+      return false
+    }
     notifyVisible.value = false
     const prevIds = allIds.value.slice()
     replies.value = res?.replies || []
     opAuthor.value = res?.opAuthor || null
     total.value = res?.total || 0
     allIds.value = res?.allIds || []
+    replyNotice.value = res?.replyNotice || ''
     
     if (silent && prevIds.length) {
       const newIds = allIds.value.filter((id) => !prevIds.includes(id))
@@ -395,6 +438,7 @@ const poll = async () => {
 
 
 const init = ()=> {
+	;(window as any).jumpToFloor = jumpToFloor
 	window.addEventListener('visibilitychange', listenVisible )
 	window.addEventListener('scroll', listenScroll)
 	window.addEventListener('pageshow', listPageShow )
@@ -425,11 +469,18 @@ onActivated(() => {
 onDeactivated(() => {
   clearTimeout(pollTimer)
   clearTimeout(scrollTimer)
+  delete (window as any).jumpToFloor
   window.removeEventListener('visibilitychange', listenVisible )
   window.removeEventListener('scroll', listenScroll)
   window.removeEventListener('pageshow', listPageShow )
   stopBlink()
   console.log('TopicPage deactivated')
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    delete (window as any).jumpToFloor
+  }
 })
 
 // --- 监听 ID 变化 ---
@@ -498,6 +549,16 @@ body {
   word-break: break-word;
   overflow: visible;
   box-sizing: border-box;
+}
+
+.error-panel {
+  margin: 12px 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #ffd7d7;
+  border-radius: 12px;
+  background: #fff6f6;
+  color: #7a1f1f;
+  line-height: 1.6;
 }
 
 .content {
@@ -802,6 +863,18 @@ body {
   display: inline-block;
   padding-bottom: 3px;
 }
+
+.reply-notice {
+  margin: 0.75rem 0 1rem;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 193, 7, 0.08);
+  border: 1px solid rgba(255, 193, 7, 0.16);
+  color: var(--meta);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
 .skeleton-block {
   padding: 6px 0;
   height:calc(100vh - 80px);

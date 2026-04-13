@@ -1,0 +1,4 @@
+[Network] 代理已生效，接管流量 -> http://127.0.0.1:10809
+Listening on http://[::]:43123
+[linux.do] Proxy enabled -> http://127.0.0.1:10809
+[V2EX] Proxy enabled -> http://127.0.0.1:10809

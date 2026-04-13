@@ -1,14 +1,22 @@
-﻿<template>
+<template>
   <div>
     <div v-for="node in nodes" :key="node.id" class="comment-item" :id="`c_${node.id}`" :style="nodeStyle(node)">
       <div class="comment-bar">
         <b style="color: var(--author);">{{ node.author }}</b>
         <span v-if="node.author === opAuthor" class="op-tag">OP</span>
-        <template v-if="node.replyAuthor">
+        <template v-if="node.replyAuthor || node.replyFloor">
           <svg style="width:14px;height:14px;margin:0 0.5rem;vertical-align:middle;" width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M20 12L32 24L20 36V12Z" fill="#333" stroke="#333" stroke-width="3" stroke-linejoin="round"/>
           </svg>
-          <span class="reply-author">@{{ node.replyAuthor }}</span>
+          <span v-if="node.replyAuthor" class="reply-author">@{{ node.replyAuthor }}</span>
+          <button
+            v-if="node.replyFloor"
+            type="button"
+            class="reply-floor-btn"
+            @click="jumpToFloor(node.replyFloor)"
+          >
+            #{{ node.replyFloor }}
+          </button>
         </template>
         <span style="margin-left: 6px; opacity: 0.6;">{{ node.time }}</span>
         <span v-if="node.likes > 0" style="display:inline-flex;align-items:center;margin-left: 8px; color:#ff2c55; font-weight:bold;">
@@ -20,7 +28,12 @@
         <span style="margin-left: 6px; opacity: 0.4;">#{{ node.id }}</span>
       </div>
       <div class="reply-txt" v-html="decorateText(node.replyHtml)"></div>
-      <CommentTree v-if="node.children && node.children.length" :nodes="node.children" :opAuthor="opAuthor" :level="level + 1" />
+      <CommentTree
+        v-if="node.children && node.children.length"
+        :nodes="node.children"
+        :opAuthor="opAuthor"
+        :level="level + 1"
+      />
     </div>
   </div>
 </template>
@@ -31,7 +44,7 @@ defineOptions({ name: 'CommentTree' })
 const props = defineProps<{ nodes: any[]; opAuthor: string | null; level?: number }>()
 const level = computed(() => props.level || 0)
 
-const nodeStyle = (node: any) => {
+const nodeStyle = () => {
   return level.value === 0
     ? 'padding: 18px 0; border-bottom: 1px solid var(--border);'
     : 'padding-top: 12px; padding-left: 1.2rem; border-left: 1.5px solid var(--border);'
@@ -41,4 +54,28 @@ const decorateText = (html: string) => {
   if (!html) return ''
   return html.replace(/(^|[^"'\w&;])#(\d+)\b/g, '$1<a onclick="jumpToFloor(event, $2)" style="cursor:pointer;" title="点击跳转到 $2 楼">#$2</a>')
 }
+
+const jumpToFloor = (floor: number) => {
+  if (typeof window === 'undefined') return
+  const handler = (window as any).jumpToFloor
+  if (typeof handler === 'function') {
+    handler(null, floor)
+  }
+}
 </script>
+
+<style scoped>
+.reply-floor-btn {
+  margin-left: 6px;
+  border: none;
+  background: transparent;
+  color: var(--meta);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+.reply-floor-btn:hover {
+  color: var(--text);
+}
+</style>

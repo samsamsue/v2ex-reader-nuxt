@@ -1,5 +1,5 @@
-﻿import { defineEventHandler, getRouterParam, setResponseStatus } from 'h3'
-import { ENV, decodeShare, fetchAndParsePostFull } from '../../utils/v2ex'
+import { defineEventHandler, getRouterParam, setResponseStatus } from 'h3'
+import { ENV, createUpstreamErrorPayload, decodeShare, fetchRepliesById, fetchTopicById } from '../../utils/linuxdo'
 
 export default defineEventHandler(async (event) => {
   const code = String(getRouterParam(event, 'id') || '')
@@ -9,6 +9,12 @@ export default defineEventHandler(async (event) => {
     return { error: 'ID_DECODE_FAILED' }
   }
 
-  const postData = await fetchAndParsePostFull(`https://www.v2ex.com/t/${rawId}`, ENV)
-  return { ...postData, rawId }
+  try {
+    const [topicData, replyData] = await Promise.all([fetchTopicById(rawId, ENV), fetchRepliesById(rawId, ENV)])
+    return { ...topicData, ...replyData, rawId }
+  } catch (error) {
+    const payload = createUpstreamErrorPayload(error)
+    setResponseStatus(event, payload.statusCode)
+    return payload.body
+  }
 })

@@ -1,25 +1,81 @@
-﻿<template>
+<template>
   <div class="page-container">
-    <LoginBox v-if="needLogin" :from="fromPath" />
+    <LoginBox v-if="needLogin" :from="fromPath" :title="siteConfig.title" />
     <template v-else>
-      <div id="mainContent" >
-        <div class="fab-group">
-          <div class="fab" @click="openNotif" style="position:relative;" title="消息提醒">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/></svg>
-            <div v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</div>
+      <div id="mainContent">
+        <div class="toolbar">
+          <div class="site-switcher" role="tablist" aria-label="Site switcher">
+            <button
+              v-for="option in siteOptions"
+              :key="option.key"
+              :class="['site-tab', { active: activeSite === option.key }]"
+              type="button"
+              @click="switchSite(option.key)"
+            >
+              {{ option.label }}
+            </button>
           </div>
-          <div class="fab" @click="scrollTop"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></div>
-          <div class="fab" :class="{'loading-rotate': loading}" @click="loadList"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></div>
+        </div>
+
+        <div class="fab-group">
+          <button
+            v-if="notificationsEnabled"
+            class="fab"
+            type="button"
+            title="消息提醒"
+            @click="openNotif"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+              <path d="M8 12h.01" />
+              <path d="M12 12h.01" />
+              <path d="M16 12h.01" />
+            </svg>
+            <span v-if="unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          </button>
+
+          <button class="fab" type="button" title="回到顶部" @click="scrollTop">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m18 15-6-6-6 6" />
+            </svg>
+          </button>
+
+          <button
+            class="fab"
+            :class="{ 'loading-rotate': loading }"
+            type="button"
+            title="刷新列表"
+            @click="loadList"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+              <path d="M16 16h5v5" />
+            </svg>
+          </button>
+        </div>
+
+        <div v-if="errorMessage" class="error-panel">
+          <div class="error-title">无法读取 {{ siteConfig.label }} 列表</div>
+          <div class="error-body">{{ errorMessage }}</div>
         </div>
 
         <div id="list">
           <div v-if="loading && !items.length" class="list-skeleton">
-            <div v-for="i in 5" :key="i" :class="['skeleton-line', `w-${40 + i*10}`]"></div>
+            <div v-for="i in 5" :key="i" :class="['skeleton-line', `w-${40 + i * 10}`]"></div>
           </div>
-          
-          <div v-for="item in items" :key="item.code" class="item" :id="`item_${item.code}`" :class="{ 'flash-highlight': lastViewedCode === item.code }">
-            <NuxtLink :to="`/t/${item.code}`" @click="saveLastViewed(item.code)">{{ item.title }}</NuxtLink>
-            <div class="meta">@{{ item.author }} • {{ item.time }} • {{ item.replies }}回复</div>
+
+          <div
+            v-for="item in items"
+            :key="item.code"
+            :id="`item_${item.code}`"
+            :class="['item', { 'flash-highlight': lastViewedCode === item.code }]"
+          >
+            <NuxtLink :to="topicLink(item.code)" @click="saveLastViewed(item.code)">
+              {{ item.title }}
+            </NuxtLink>
+            <div class="meta">@{{ item.author }} · {{ item.time }} · {{ item.replies }} 回复</div>
           </div>
         </div>
 
@@ -33,14 +89,14 @@
       <div id="notifOverlay" :class="{ open: showNotif }" @click="showNotif = false"></div>
       <div id="notifModal" :class="{ open: showNotif }">
         <div class="notif-header">
-          <h3>最新提醒</h3>
-          <button class="close-btn" @click="showNotif = false" aria-label="关闭">&times;</button>
+          <h3>{{ siteConfig.label }} 提醒</h3>
+          <button class="close-btn" type="button" aria-label="关闭" @click="showNotif = false">&times;</button>
         </div>
-        
+
         <div v-if="notifLoading && !notifs.length" class="notif-state">
           <p>正在获取消息...</p>
         </div>
-        
+
         <div v-else-if="notifs.length === 0" class="notif-state">
           <p>暂无新消息</p>
         </div>
@@ -55,7 +111,9 @@
               <div v-if="n.payload" class="notif-payload" v-html="n.payload"></div>
             </div>
             <div class="notif-arrow">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
             </div>
           </div>
         </div>
@@ -67,268 +125,529 @@
 <script setup lang="ts">
 import { lockScroll, unLockScroll } from '../utils/common'
 
-/** 1. 基础状态 */
+const LINUXDO_PREFIX = 'l-'
 const route = useRoute()
+const router = useRouter()
+
+const siteOptions = [
+  { key: 'v2ex', label: 'V2EX' },
+  { key: 'linuxdo', label: 'linux.do' }
+] as const
+
+const siteMap = {
+  v2ex: {
+    key: 'v2ex',
+    label: 'V2EX',
+    title: 'V2EX Reader',
+    listApi: '/api/v2ex/all',
+    notifApi: '/api/v2ex/notif',
+    notifCountApi: '/api/v2ex/notif/count',
+    hasCookieKey: 'hasV2Cookie',
+    firstListKey: 'v2ex_first_list',
+    lastCodeKey: 'v2ex_last_code',
+    topicPrefix: ''
+  },
+  linuxdo: {
+    key: 'linuxdo',
+    label: 'linux.do',
+    title: 'linux.do Reader',
+    listApi: '/api/all',
+    notifApi: '/api/notif',
+    notifCountApi: '/api/notif/count',
+    hasCookieKey: 'hasLinuxDoCookie',
+    firstListKey: 'linuxdo_first_list',
+    lastCodeKey: 'linuxdo_last_code',
+    topicPrefix: LINUXDO_PREFIX
+  }
+} as const
+
+type SiteKey = keyof typeof siteMap
+
+const activeSite = computed<SiteKey>(() => route.query.site === 'linuxdo' ? 'linuxdo' : 'v2ex')
+const siteConfig = computed(() => siteMap[activeSite.value])
+
 const needLogin = ref(false)
 const items = ref<any[]>([])
 const loading = ref(false)
-
-
-/** 3. 消息提醒逻辑 */
+const errorMessage = ref('')
 const showNotif = ref(false)
 const unreadCount = ref(0)
 const notifs = ref<any[]>([])
 const notifLoading = ref(false)
+const notificationsEnabled = ref(false)
+const currentPage = ref(0)
+const canLoadMore = ref(false)
+const isLoadingMore = ref(false)
+const loaderEl = ref<HTMLElement | null>(null)
+const loaderText = ref('加载中...')
+const lastViewedCode = ref<string | null>(null)
 
-// 监听抽屉状态：锁定滚动条并处理防抖宽度
+let observer: IntersectionObserver | null = null
+let unreadTimer: ReturnType<typeof setInterval> | null = null
+let enableMoreTimer: ReturnType<typeof setTimeout> | null = null
+let pageShowHandler: ((event: PageTransitionEvent) => void) | null = null
+
 watch(showNotif, (val) => {
-  if (process.client) {
-    val ? lockScroll('notif') : unLockScroll('notif')
+  if (!process.client) return
+  if (val) lockScroll('notif')
+  else unLockScroll('notif')
+})
+
+const fromPath = computed(() => route.fullPath || '/all')
+
+const topicLink = (code: string) => `/t/${siteConfig.value.topicPrefix}${code}`
+
+const switchSite = async (site: SiteKey) => {
+  if (site === activeSite.value) return
+  await router.replace({
+    path: '/all',
+    query: site === 'linuxdo' ? { site: 'linuxdo' } : {}
+  })
+}
+
+const stopBlink = () => {
+  document.title = siteConfig.value.title
+}
+
+const startBlink = () => {
+  document.title = `(${unreadCount.value}) ${siteConfig.value.title}`
+}
+
+const checkHighlight = () => {
+  const lastCode = sessionStorage.getItem(siteConfig.value.lastCodeKey)
+  if (!lastCode) return
+  lastViewedCode.value = lastCode
+  nextTick(() => {
+    const el = document.getElementById(`item_${lastCode}`)
+    if (el) {
+      el.classList.remove('flash-highlight')
+      void el.offsetWidth
+      el.classList.add('flash-highlight')
+    }
+    sessionStorage.removeItem(siteConfig.value.lastCodeKey)
+  })
+}
+
+const fetchPage = async (p: number) => {
+  try {
+    const res: any = await $fetch(siteConfig.value.listApi, {
+      query: { p, _t: Date.now() }
+    })
+    if (res?.error === 'AUTH') {
+      needLogin.value = true
+      return null
+    }
+    if (res?.error) {
+      errorMessage.value = res.message || res.error
+      return null
+    }
+    errorMessage.value = ''
+    needLogin.value = false
+    return res
+  } catch (error: any) {
+    if (error?.response?.status === 401 || error?.data?.error === 'AUTH') {
+      needLogin.value = true
+      return null
+    }
+    errorMessage.value = error?.data?.message || error?.message || 'Unknown error'
+    return null
   }
-});
+}
+
+const loadList = async () => {
+  if (!process.client) return
+
+  scrollTop()
+  loading.value = true
+  errorMessage.value = ''
+  currentPage.value = 0
+  canLoadMore.value = false
+  loaderText.value = '加载中...'
+
+  const res = await fetchPage(0)
+  if (res?.items) {
+    items.value = res.items
+    localStorage.setItem(siteConfig.value.firstListKey, JSON.stringify(res.items))
+    loaderText.value = res.items.length ? '继续下滑加载更多' : '暂无内容'
+    enableMoreTimer && clearTimeout(enableMoreTimer)
+    enableMoreTimer = setTimeout(() => {
+      canLoadMore.value = res.items.length > 0
+    }, 600)
+  } else if (!needLogin.value) {
+    items.value = []
+    loaderText.value = ''
+  }
+
+  loading.value = false
+}
+
+const loadMore = async () => {
+  if (loading.value || !canLoadMore.value || isLoadingMore.value) return
+
+  isLoadingMore.value = true
+  const nextPage = currentPage.value + 1
+
+  try {
+    const res = await fetchPage(nextPage)
+    if (!res?.items?.length) {
+      canLoadMore.value = false
+      loaderText.value = '没有更多内容了'
+      return
+    }
+
+    const existingCodes = new Set(items.value.map((item) => item.code))
+    const newItems = res.items.filter((item: any) => !existingCodes.has(item.code))
+
+    if (!newItems.length) {
+      canLoadMore.value = false
+      loaderText.value = '没有更多内容了'
+      return
+    }
+
+    currentPage.value = nextPage
+    items.value.push(...newItems)
+    loaderText.value = '继续下滑加载更多'
+  } finally {
+    isLoadingMore.value = false
+  }
+}
 
 const openNotif = async () => {
   showNotif.value = true
   notifLoading.value = true
   unreadCount.value = 0
   stopBlink()
+
   try {
-    const res: any = await $fetch('/api/notif')
+    const res: any = await $fetch(siteConfig.value.notifApi)
     notifs.value = res?.items || []
-  } catch (e) {
-    console.error('Failed to fetch notifications')
+  } catch {
+    notifs.value = []
   } finally {
     notifLoading.value = false
   }
 }
 
-/** 4. 数据加载与高亮逻辑 */
-const currentPage = ref(parseInt(String(route.query.p || 0)))
-const canLoadMore = ref(false)
-const isLoadingMore = ref(false) // 新增：用于防止接口并发请求
-const loaderEl = ref<HTMLElement | null>(null)
-const loaderText = ref('加载中...')
-const lastViewedCode = ref<string | null>(null)
-
-const checkHighlight = () => {
-  const lastCode = sessionStorage.getItem('v2_last_code')
-  if (lastCode) {
-    lastViewedCode.value = lastCode
-    nextTick(() => {
-      const el = document.getElementById('item_' + lastCode)
-      if (el) {
-        el.classList.remove('flash-highlight')
-        // void el.offsetWidth // 触发重绘
-        el.classList.add('flash-highlight')
-        sessionStorage.removeItem('v2_last_code')
-      }
-    });
-  }
-}
-
-const fetchPage = async (p: number) => {
-  try {
-    const res: any = await $fetch('/api/all', { query: { p, _t: Date.now() } })
-    if (res?.error === 'AUTH') {
-      needLogin.value = true
-      return null
-    }
-    return res
-  } catch (error: any){
-    if (error.response?.status === 401 || error.data?.error === 'AUTH') {
-      needLogin.value = true
-    } 
-    return null 
-  }
-}
-
-// 优化后的加载更多逻辑（加入请求锁与数据去重）
-const loadMore = async () => {
-  // 如果不能加载，或者正在加载中，直接返回避免并发
-  if (!canLoadMore.value || isLoadingMore.value) return
-  
-  isLoadingMore.value = true // 上锁
-  currentPage.value++
-  
-  try {
-    const res = await fetchPage(currentPage.value)
-    
-    if (res?.items?.length) {
-      // 提取当前已有的所有 code 作为一个 Set，提高查找效率
-      const existingCodes = new Set(items.value.map(item => item.code))
-      
-      // 过滤掉已经在列表中的重复项
-      const newItems = res.items.filter((item: any) => !existingCodes.has(item.code))
-      
-      // 追加去重后的新数据
-      items.value.push(...newItems)
-    } else {
-      loaderText.value = '到底了'
-      canLoadMore.value = false
-    }
-  } catch (error) {
-    console.error('加载更多失败:', error)
-    // 请求失败时页码退回，允许下次重试
-    currentPage.value--
-  } finally {
-    isLoadingMore.value = false // 解锁
-  }
-}
-
-/** 5. 工具函数 */
-const fromPath = computed(() => route.fullPath || '/all')
-const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
-const saveLastViewed = (code: string) => sessionStorage.setItem('v2_last_code', code)
-const goToTopic = (id: string) => {
-  showNotif.value = false
-  navigateTo(`/t/${id}`)
-}
-
-/** 6. 辅助逻辑 */
-let favInterval: any = null
-const startBlink = () => {
-  if (favInterval) return
-  favInterval = setInterval(() => {}, 800)
-}
-const stopBlink = () => {
-  clearInterval(favInterval); favInterval = null
-}
-
 const checkUnread = async () => {
   try {
-    const res: any = await $fetch('/api/notif/count')
-    if (res.count > unreadCount.value) {
+    const res: any = await $fetch(siteConfig.value.notifCountApi)
+    if (typeof res?.count === 'number' && res.count > unreadCount.value) {
       unreadCount.value = res.count
       startBlink()
     }
-  } catch {}
-}
-
-const loadList = async ()=> {
-  scrollTo({ top: 0, behavior: 'smooth' })
-  loading.value = true
-  currentPage.value = 0
-  const initial = await fetchPage(currentPage.value)
-  if (initial?.items) {
-    items.value = initial.items
-    localStorage.setItem('v2_first_list', JSON.stringify(initial.items))
+  } catch {
   }
-  loading.value = false
 }
 
+const scrollTop = () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
-/** 7. 生命周期与后退监听 */
-onMounted(async () => {
-  items.value = JSON.parse(localStorage.getItem('v2_first_list') || '[]')
-  
-  loadList()
-  
+const saveLastViewed = (code: string) => {
+  sessionStorage.setItem(siteConfig.value.lastCodeKey, code)
+}
+
+const goToTopic = async (id: string) => {
+  showNotif.value = false
+  await navigateTo(topicLink(id))
+}
+
+const syncSiteState = async () => {
+  if (!process.client) return
+
+  needLogin.value = false
+  showNotif.value = false
+  unreadCount.value = 0
+  notifs.value = []
+  notifLoading.value = false
+  errorMessage.value = ''
+  stopBlink()
+
+  try {
+    items.value = JSON.parse(localStorage.getItem(siteConfig.value.firstListKey) || '[]')
+  } catch {
+    items.value = []
+  }
+
+  lastViewedCode.value = null
+
+  try {
+    const env: any = await $fetch('/api/env')
+    notificationsEnabled.value = Boolean(env?.[siteConfig.value.hasCookieKey])
+  } catch {
+    notificationsEnabled.value = false
+  }
+
+  await loadList()
   checkHighlight()
+}
 
-  // 监听浏览器后退时的 bfcache
-  window.addEventListener('pageshow', (e) => {
-    if (e.persisted) checkHighlight()
-  })
+watch(activeSite, async () => {
+  await syncSiteState()
+})
 
-  // 这里的 observer 不需要修改，loadMore 内部已经做了锁定保护
-  const observer = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting && canLoadMore.value) loadMore()
+onMounted(async () => {
+  await syncSiteState()
+
+  pageShowHandler = (event: PageTransitionEvent) => {
+    if (event.persisted) checkHighlight()
+  }
+
+  window.addEventListener('pageshow', pageShowHandler)
+
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0]?.isIntersecting) {
+      void loadMore()
+    }
   }, { rootMargin: '200px' })
+
   if (loaderEl.value) observer.observe(loaderEl.value)
 
-  setTimeout(() => { canLoadMore.value = true }, 1500)
-  setInterval(checkUnread, 60000)
+  unreadTimer = setInterval(() => {
+    if (notificationsEnabled.value) {
+      void checkUnread()
+    }
+  }, 60000)
 })
 
-// 处理 Nuxt 路由后退时的激活
 onActivated(() => {
-  checkHighlight()
+  if (process.client) checkHighlight()
 })
 
-onDeactivated(() => {
+onBeforeUnmount(() => {
+  if (pageShowHandler) {
+    window.removeEventListener('pageshow', pageShowHandler)
+    pageShowHandler = null
+  }
 
+  observer?.disconnect()
+  observer = null
+
+  if (unreadTimer) clearInterval(unreadTimer)
+  if (enableMoreTimer) clearTimeout(enableMoreTimer)
+
+  unLockScroll('notif')
+  stopBlink()
 })
 
-useHead({ title: 'V2EX Reader' })
+useHead(() => ({
+  title: siteConfig.value.title
+}))
 </script>
 
 <style scoped>
 .page-container {
-  --bg:#fff; --text:#1d2129; --author:#999; --meta:#86909c; --border:#f2f3f5; 
-  --fab-bg:rgba(245,245,247,0.7); --input-bg:#f9fafb;
-}
-@media (prefers-color-scheme:dark) {
-  .page-container { --bg:#1a1a1c; --text:#e1e1e1; --border:#2d2d2e; --fab-bg:rgba(45,45,46,0.7); --input-bg:#252526; }
+  --bg: #fff;
+  --text: #1d2129;
+  --meta: #86909c;
+  --border: #f2f3f5;
+  --fab-bg: rgba(245, 245, 247, 0.72);
+  --input-bg: #f9fafb;
+  --toolbar-bg: rgba(255, 255, 255, 0.82);
 }
 
-/* 锁定滚动条：使用 padding 防止抖动 */
+@media (prefers-color-scheme: dark) {
+  .page-container {
+    --bg: #1a1a1c;
+    --text: #e1e1e1;
+    --meta: #8f96a3;
+    --border: #2d2d2e;
+    --fab-bg: rgba(45, 45, 46, 0.72);
+    --input-bg: #252526;
+    --toolbar-bg: rgba(26, 26, 28, 0.82);
+  }
+}
+
 :global(body.lock-scroll) {
   overflow: hidden !important;
   padding-right: var(--scrollbar-width, 0px);
 }
 
-.loader-text{
-  text-align: center;
-  padding-top:1rem;
+#mainContent {
+  width: 650px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 20px;
 }
 
-#mainContent { width: 650px; max-width:100%; margin: 0 auto; padding: 20px; }
-.item { padding:20px 0; border-bottom:1px solid var(--border); transition: background 0.3s; }
-.item > a { text-decoration: none; color:inherit; font-size: 1.05rem; }
-.meta { color:var(--meta); font-size:0.8rem; margin-top: 6px; }
-
-.fab-group { position:fixed; top:50%; transform: translateY(-50%) ; left:calc(50% + 340px); display:flex; flex-direction:column; gap:12px; z-index:100; transition: margin-right 0.3s; }
-:global(body.lock-scroll) .fab-group { margin-right: var(--scrollbar-width, 0px); }
-@media (max-width: 850px) { .fab-group { display:none; } }
-
-.fab { width:48px; height:48px; background:var(--fab-bg); border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1); }
-
-/* Code Mode Styles */
-#codeMode { position:fixed; top:0; left:0; width:100%; height:100vh; background:#1e1e1e; color:#d4d4d4; font-family:monospace; padding:20px; overflow-y:auto; z-index:9999; }
-.code-header { color:#6a9955; margin-bottom:15px; border-bottom:1px solid #333; }
-.code-ln { color:#858585; margin-right:15px; width:25px; display:inline-block; text-align:right; }
-.code-k { color:#569cd6; } .code-v { color:#9cdcfe; } .code-s { color:#ce9178; } .code-c { color:#6a9955; }
-
-/* Transitions & Highlight */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-
-.flash-highlight { animation: highlight-fade 3s forwards; }
-@keyframes highlight-fade { 
-  0% { background: rgba(255, 235, 59, 0.3); }
-  100% { background: transparent; } 
-}
-
-/* Notif Drawer */
-#notifModal {
-  position: fixed;
+.toolbar {
+  position: sticky;
   top: 0;
-  right: -100%;
-  width: 100%;
-  max-width: 420px;
-  height: 100vh;
-  background: var(--bg);
-  z-index: 2000;
-  transition: right 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-  border-left: 1px solid var(--border);
+  z-index: 90;
+  margin: -4px -20px 16px;
+  padding: 10px 20px 12px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.site-switcher {
+  display: inline-flex;
+  gap: 18px;
+  align-items: center;
+}
+
+.site-tab {
+  padding: 4px 0 8px;
+  border: none;
+  border-bottom: 1.5px solid transparent;
+  background: transparent;
+  color: var(--meta);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.site-tab.active {
+  color: var(--text);
+  border-bottom-color: rgba(29, 33, 41, 0.35);
+}
+
+.error-panel {
+  margin: 12px 0 20px;
+  padding: 14px 16px;
+  border: 1px solid #ffd7d7;
+  border-radius: 12px;
+  background: #fff6f6;
+  color: #7a1f1f;
+}
+
+.error-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.error-body {
+  line-height: 1.6;
+  font-size: 0.92rem;
+  word-break: break-word;
+}
+
+#list {
+  min-height: 200px;
+}
+
+.item {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.item > a {
+  color: inherit;
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+
+.meta {
+  margin-top: 6px;
+  color: var(--meta);
+  font-size: 0.82rem;
+}
+
+.loader-text {
+  padding: 16px 0 28px;
+  text-align: center;
+  color: var(--meta);
+  font-size: 0.92rem;
+}
+
+.fab-group {
+  position: fixed;
+  top: 50%;
+  left: calc(50% + 340px);
   display: flex;
   flex-direction: column;
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
+  gap: 12px;
+  transform: translateY(-50%);
+  z-index: 100;
 }
 
-#notifModal.open {
-  right: 0;
+:global(body.lock-scroll) .fab-group {
+  margin-right: var(--scrollbar-width, 0px);
+}
+
+@media (max-width: 850px) {
+  .toolbar {
+    margin-left: -20px;
+    margin-right: -20px;
+  }
+
+  .fab-group {
+    display: none;
+  }
+}
+
+.fab {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  background: var(--fab-bg);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #ff2c55;
+  color: #fff;
+  font-size: 10px;
+  border: 2px solid var(--bg);
+}
+
+.list-skeleton {
+  padding-top: 12px;
+}
+
+.skeleton-line {
+  height: 14px;
+  margin: 10px 0;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.05) 25%, rgba(0, 0, 0, 0.12) 37%, rgba(0, 0, 0, 0.05) 63%);
+  background-size: 400% 100%;
+  animation: skeleton 1.4s ease infinite;
+}
+
+.w-50 { width: 50%; }
+.w-60 { width: 60%; }
+.w-70 { width: 70%; }
+.w-80 { width: 80%; }
+.w-90 { width: 90%; }
+
+.flash-highlight {
+  animation: highlight-fade 3s forwards;
+}
+
+@keyframes highlight-fade {
+  0% { background: rgba(255, 235, 59, 0.3); }
+  100% { background: transparent; }
+}
+
+@keyframes skeleton {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
 }
 
 #notifOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
   opacity: 0;
   pointer-events: none;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
   transition: opacity 0.3s;
   z-index: 1999;
-  backdrop-filter: blur(2px);
 }
 
 #notifOverlay.open {
@@ -336,28 +655,51 @@ useHead({ title: 'V2EX Reader' })
   pointer-events: auto;
 }
 
+#notifModal {
+  position: fixed;
+  top: 0;
+  right: -100%;
+  width: 100%;
+  max-width: 420px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
+  transition: right 0.35s ease;
+  z-index: 2000;
+}
+
+#notifModal.open {
+  right: 0;
+}
+
 .notif-header {
   padding: 16px 20px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   border-bottom: 1px solid var(--border);
 }
 
 .notif-state {
+  height: 200px;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 200px;
   color: var(--meta);
+}
+
+.notif-list {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .notif-item {
   display: flex;
-  align-items: flex-start;
-  padding: 16px 20px;
   gap: 12px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
 }
@@ -372,62 +714,47 @@ useHead({ title: 'V2EX Reader' })
 }
 
 .notif-title {
+  line-height: 1.5;
   font-size: 0.95rem;
   font-weight: 500;
-  line-height: 1.5;
-  margin-bottom: 4px;
+}
+
+.notif-meta {
+  margin-top: 4px;
+  color: var(--meta);
+  font-size: 0.8rem;
 }
 
 .notif-payload {
   margin-top: 10px;
   padding: 10px 14px;
-  background: var(--input-bg);
-  border-radius: 6px;
-  font-size: 0.88rem;
   border-left: 3px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  font-size: 0.88rem;
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.notif-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: var(--meta);
-}
-
-.badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  background: #ff2c55;
-  color: white;
-  font-size: 10px;
-  padding: 2px 5px;
-  border-radius: 10px;
-  border: 2px solid var(--bg);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 28px;
-  color: var(--meta);
-  cursor: pointer;
-}
-
-.notif-list {
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
-}
-
 .notif-payload :deep(img) {
   max-width: 100%;
   max-height: 100px;
   object-fit: contain;
+}
+
+.notif-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--meta);
+}
+
+.close-btn {
+  border: none;
+  background: none;
+  color: var(--meta);
+  font-size: 28px;
+  cursor: pointer;
 }
 </style>

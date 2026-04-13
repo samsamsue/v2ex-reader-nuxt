@@ -1,4 +1,4 @@
-﻿import crypto from 'crypto'
+import crypto from 'crypto'
 import { ProxyAgent } from 'undici'
 import { readFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
@@ -22,6 +22,7 @@ function loadEnvFile() {
 loadEnvFile()
 
 export const SALT = 987654
+export const SHARE_SALT = 1234567
 export const ENV = {
   V2_COOKIE: process.env.V2_COOKIE || ''
 }
@@ -40,7 +41,7 @@ export const COOKIE_VALUE = ADMIN_PASS
   ? crypto.createHash('sha256').update(ADMIN_PASS + SALT).digest('hex')
   : 'no_pass_fallback'
 
-export const encodeId = (numId: string | number) => (parseInt(String(numId)) ^ SALT).toString(36)
+export const encodeId = (numId: string | number) => (parseInt(String(numId), 10) ^ SALT).toString(36)
 export const decodeId = (code: string) => {
   try {
     return parseInt(code, 36) ^ SALT
@@ -48,10 +49,10 @@ export const decodeId = (code: string) => {
     return null
   }
 }
-export const encodeShare = (numId: string | number) => (parseInt(String(numId)) ^ 1234567).toString(36)
+export const encodeShare = (numId: string | number) => (parseInt(String(numId), 10) ^ SHARE_SALT).toString(36)
 export const decodeShare = (code: string) => {
   try {
-    return parseInt(code, 36) ^ 1234567
+    return parseInt(code, 36) ^ SHARE_SALT
   } catch {
     return null
   }
@@ -119,6 +120,42 @@ export async function fetchAndParseList(url: string, env: { V2_COOKIE: string })
   return { items, count: items.length }
 }
 
+function extractLeadingReplyReference(contentHtml: string) {
+  const leadingReplyMatch = contentHtml.match(
+    /^\s*@<a href="\/member\/[^"]+">([^<]+)<\/a>(?:&nbsp;|&#160;|\s|<br\s*\/?>|:|：|,|，)*/i
+  )
+
+  if (!leadingReplyMatch) {
+    return {
+      replyAuthor: '',
+      replyHtml: contentHtml
+    }
+  }
+
+  return {
+    replyAuthor: leadingReplyMatch[1].trim(),
+    replyHtml: contentHtml.slice(leadingReplyMatch[0].length).trim()
+  }
+}
+
+function extractLeadingReplyReferenceSafe(contentHtml: string) {
+  const leadingReplyMatch = contentHtml.match(
+    /^\s*@<a href="\/member\/[^"]+">([^<]+)<\/a>(?:&nbsp;|&#160;|\s|<br\s*\/?>|[:\uFF1A,\uFF0C])*/i
+  )
+
+  if (!leadingReplyMatch) {
+    return {
+      replyAuthor: '',
+      replyHtml: contentHtml
+    }
+  }
+
+  return {
+    replyAuthor: leadingReplyMatch[1].trim(),
+    replyHtml: contentHtml.slice(leadingReplyMatch[0].length).trim()
+  }
+}
+
 export async function fetchAndParsePostFull(targetUrl: string, env: { V2_COOKIE: string }) {
   const firstResp = await safeFetch(targetUrl, env)
   const firstHtml = await firstResp.text()
@@ -139,7 +176,7 @@ export async function fetchAndParsePostFull(targetUrl: string, env: { V2_COOKIE:
   let pagesHtml = [firstHtml]
   const pageMatches = firstHtml.match(/href="\/t\/\d+\?p=(\d+)"/g)
   if (pageMatches) {
-    const maxPage = Math.max(...pageMatches.map((m) => parseInt(m.match(/p=(\d+)/)![1])))
+    const maxPage = Math.max(...pageMatches.map((m) => parseInt(m.match(/p=(\d+)/)![1], 10)))
     if (maxPage > 1) {
       const fetchers = [] as Promise<string>[]
       for (let i = 2; i <= Math.min(maxPage, 3); i++) {
@@ -163,49 +200,53 @@ export async function fetchAndParsePostFull(targetUrl: string, env: { V2_COOKIE:
   let globalIdx = 1
   pagesHtml.forEach((html) => {
     const blocks = html.substring(html.indexOf('<div id="replies"')).match(/<td width="auto" valign="top" align="left">.*?<\/td>/gs) || []
-    blocks.forEach((b) => {
-      const auth = (b.match(/strong><a href="\/member\/.*?">(.*?)<\/a><\/strong>/) || ['', ''])[1]
-      const timeMatch = b.match(/class="ago" title=".*?">(.*?)<\/span>/)
-      const contentBlock = (b.match(/<div class="reply_content">(.*?)<\/div>/s) || ['', ''])[1]
-      const replyAuthor = (contentBlock.match(/<a href="\/member\/.*?">(.*?)<\/a>/) || ['', ''])[1]
-      const replyHtml = contentBlock.replace(/@<a href="\/member\/.*?">(.*?)<\/a>/g, '<span class="reply-author">@$1</span>').replace('@'+replyAuthor, '')
-      const pid = (contentBlock.match(/@<a href="\/member\/.*?">(.*?)<\/a>/) || [null, null])[1]
-      const likes = (b.match(/alt="❤️" \/>\s*(\d+)/) || [0, 0])[1]
-      const rObj = {
+    blocks.forEach((block) => {
+      const auth = (block.match(/strong><a href="\/member\/.*?">(.*?)<\/a><\/strong>/) || ['', ''])[1]
+      const timeMatch = block.match(/class="ago" title=".*?">(.*?)<\/span>/)
+      const contentBlock = (block.match(/<div class="reply_content">(.*?)<\/div>/s) || ['', ''])[1]
+      const { replyAuthor, replyHtml: strippedReplyHtml } = extractLeadingReplyReferenceSafe(contentBlock)
+      const replyHtml = strippedReplyHtml.replace(
+        /@<a href="\/member\/.*?">(.*?)<\/a>/g,
+        '<span class="reply-author">@$1</span>'
+      )
+      const likes = (block.match(/alt="❤️" \/>\s*(\d+)/) || [0, 0])[1]
+      const reply = {
         id: globalIdx++,
         author: auth,
         replyAuthor,
         replyHtml,
-        likes: parseInt(String(likes)),
+        likes: parseInt(String(likes), 10),
         time: timeMatch ? timeMatch[1] : '',
-        parent: pid && userMap[pid] ? userMap[pid] : null,
+        parent: replyAuthor && userMap[replyAuthor] ? userMap[replyAuthor] : null,
         children: [] as any[]
       }
-      allReplies.push(rObj)
-      userMap[auth] = rObj.id
+      allReplies.push(reply)
+      userMap[auth] = reply.id
     })
   })
 
   let tree: typeof allReplies = []
   let map: Record<number, any> = {}
-  allReplies.forEach((r) => (map[r.id] = r))
+  allReplies.forEach((reply) => {
+    map[reply.id] = reply
+  })
 
-  const getUltimateRootId = (pid: number) => {
-    let curr = map[pid]
+  const getUltimateRootId = (parentId: number) => {
+    let current = map[parentId]
     let depth = 0
-    while (curr && curr.parent && map[curr.parent] && depth < 50) {
-      curr = map[curr.parent]
+    while (current && current.parent && map[current.parent] && depth < 50) {
+      current = map[current.parent]
       depth++
     }
-    return curr ? curr.id : pid
+    return current ? current.id : parentId
   }
 
-  allReplies.forEach((r) => {
-    if (r.parent && map[r.parent]) {
-      const rootId = getUltimateRootId(r.parent)
-      map[rootId].children.push(r)
+  allReplies.forEach((reply) => {
+    if (reply.parent && map[reply.parent]) {
+      const rootId = getUltimateRootId(reply.parent)
+      map[rootId].children.push(reply)
     } else {
-      tree.push(r)
+      tree.push(reply)
     }
   })
 
@@ -217,7 +258,7 @@ export async function fetchAndParsePostFull(targetUrl: string, env: { V2_COOKIE:
     opAuthor,
     replies: tree,
     total: allReplies.length,
-    allIds: allReplies.map((r) => r.id)
+    allIds: allReplies.map((reply) => reply.id)
   }
 }
 

@@ -1,52 +1,56 @@
-﻿<template>
+<template>
   <div>
-    
-    <div id="jumpPrompt" :class="{ show: showPrompt }">
-      <span>检测到链接</span>
-      <button id="jumpBtn" @click="handleAutoJump">立即跳转</button>
-    </div>
-    
-    <div id="mainContent" class="box">
-      <h2>V2EX Reader</h2>
-      <div style="display:flex; gap:10px; margin-bottom:20px; margin-top:10px;">
-        <input 
-          ref="inputRef"
-          type="text" 
-          v-model="inputUrl" 
-          @keypress.enter="manualJump"
-          placeholder="粘贴链接或直接输入数字ID" 
-          style="flex:1; margin:0;"
+    <LoginBox v-if="needLogin" :from="fromPath" title="V2EX Reader" />
+    <template v-else>
+      <div id="jumpPrompt" :class="{ show: showPrompt }">
+        <span>检测到链接</span>
+        <button id="jumpBtn" @click="handleAutoJump">立即跳转</button>
+      </div>
+
+      <div id="mainContent" class="box">
+        <h2>V2EX Reader</h2>
+        <div style="display:flex; gap:10px; margin-bottom:20px; margin-top:10px;">
+          <input
+            ref="inputRef"
+            v-model="inputUrl"
+            type="text"
+            placeholder="粘贴链接或直接输入数字ID"
+            style="flex:1; margin:0;"
+            @keypress.enter="manualJump"
+          >
+          <button
+            style="padding:0 24px; border:none; border-radius:12px; background:#1d2129; color:#fff; font-weight:600; cursor:pointer; white-space:nowrap; transition:transform 0.1s;"
+            @click="manualJump"
+          >
+            跳转
+          </button>
+        </div>
+        <button
+          style="width:100%;padding:14px;border:none;border-radius:12px;background:var(--border);color:var(--text);font-weight:600;cursor:pointer;"
+          @click="goToAll"
         >
-        <button 
-          @click="manualJump" 
-          style="padding:0 24px; border:none; border-radius:12px; background:#1d2129; color:#fff; font-weight:600; cursor:pointer; white-space:nowrap; transition:transform 0.1s;"
-        >
-          跳转
+          查看全部列表
         </button>
       </div>
-      <button 
-        @click="goToAll" 
-        style="width:100%;padding:14px;border:none;border-radius:12px;background:var(--border);color:var(--text);font-weight:600;cursor:pointer;"
-      >
-        查看全部列表
-      </button>
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const SALT = 987654
+const route = useRoute()
+const config = useRuntimeConfig()
+const token = useCookie('linuxdo_reader_auth')
 
-// Vue 响应式数据和 Refs
 const inputUrl = ref('')
 const showPrompt = ref(false)
 const autoJumpTarget = ref('')
 const inputRef = ref<HTMLInputElement | null>(null)
+const fromPath = computed(() => route.fullPath || '/')
+const needLogin = computed(() => Boolean(config.public.hasPassword) && !token.value)
 
-
-// 从剪贴板读取并触发跳转提示的全局事件处理
 const handleWindowFocus = async () => {
   try {
     const text = await navigator.clipboard.readText()
@@ -56,26 +60,26 @@ const handleWindowFocus = async () => {
       showPrompt.value = true
       autoJumpTarget.value = '/t/' + (parseInt(m[1]) ^ SALT).toString(36)
     }
-  } catch (err) {
+  } catch {
     // 忽略剪贴板权限或读取错误
   }
 }
 
-// 按钮事件方法
 const manualJump = () => {
   const val = inputUrl.value.trim()
   if (!val) return
+
   const m = val.match(/t\/(\d+)/) || val.match(/^(\d+)$/)
   if (m) {
     location.href = '/t/' + (parseInt(m[1]) ^ SALT).toString(36)
-  } else {
-    // 处理错误时的红色高亮动画
-    if (inputRef.value) {
-      inputRef.value.style.borderColor = '#ff2c55'
-      setTimeout(() => {
-        if (inputRef.value) inputRef.value.style.borderColor = 'var(--border)'
-      }, 800)
-    }
+    return
+  }
+
+  if (inputRef.value) {
+    inputRef.value.style.borderColor = '#ff2c55'
+    setTimeout(() => {
+      if (inputRef.value) inputRef.value.style.borderColor = 'var(--border)'
+    }, 800)
   }
 }
 
@@ -90,15 +94,16 @@ const goToAll = () => {
 }
 
 onMounted(() => {
-  // 替代 Nuxt 中的 useHead
-  document.title = 'V2EX Reader'
+  if (needLogin.value) {
+    document.title = 'V2EX Reader'
+    return
+  }
 
-  // 绑定全局 focus 事件
+  document.title = 'V2EX Reader'
   window.addEventListener('focus', handleWindowFocus)
 })
 
 onUnmounted(() => {
-  // 清理事件监听，防止内存泄漏
   window.removeEventListener('focus', handleWindowFocus)
 })
 </script>
@@ -107,7 +112,7 @@ onUnmounted(() => {
 :root { --bg:#fff; --text:#1d2129; --author:#999; --meta:#86909c; --border:#f2f3f5; --fab-bg:rgba(245,245,247,0.7); --input-bg:#f9fafb; --code-k:#0000ff; --code-v:#001080; --code-s:#a31515; --code-c:#008000; --code-ln:#858585; }
 @media (prefers-color-scheme:dark) { :root { --bg:#1a1a1c; --text:#e1e1e1; --author:#aaa; --meta:#777; --border:#2d2d2e; --fab-bg:rgba(45,45,46,0.7); --input-bg:#252526; --code-k:#569cd6; --code-v:#9cdcfe; --code-s:#ce9178; --code-c:#6a9955; } }
 html { scroll-behavior: auto; }
-body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; transition: background 0.3s; margin:0; min-height: 100vh;width:100vw;overflow-x:hidden;  }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; transition: background 0.3s; margin:0; min-height: 100vh;width:100vw;overflow-x:hidden; }
 #mainContent { width: 650px; max-width:100%; margin: 0 auto; padding: 20px; overflow-wrap: break-word; word-break: break-word; overflow: visible; box-sizing: border-box; }
 .content { line-height: 1.7; font-size: 1rem;overflow:hidden; } .content p { margin:0.5rem 0; }
 .content img, .reply-txt img { max-width: 100% !important; height: auto !important; display: block; margin: 15px 0; border-radius: 4px; }

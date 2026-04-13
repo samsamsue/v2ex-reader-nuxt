@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="login-wrap">
     <div class="box">
-      <h2>V2EX Reader</h2>
+      <h2>{{ title }}</h2>
       <form @submit.prevent="submit">
         <input v-model="password" type="password" placeholder="请输入访问密钥" autofocus required />
         <p v-if="error" class="err">密钥错误</p>
@@ -12,13 +12,16 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ from?: string }>()
+const props = withDefaults(defineProps<{ from?: string; title?: string; loginApi?: string }>(), {
+  title: 'Reader Login',
+  loginApi: '/api/login'
+})
 const password = ref('')
 const error = ref(false)
 
 const submit = async () => {
   error.value = false
-  const res = await $fetch('/api/login', {
+  const res = await $fetch(props.loginApi, {
     method: 'POST',
     body: { password: password.value }
   }).catch(() => null)

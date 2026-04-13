@@ -1,1 +1,0 @@
-import"./BuASs47r.js";const s=globalThis.setInterval;export{s};

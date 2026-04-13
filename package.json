@@ -1,10 +1,12 @@
 {
-  "name": "v2ex-reader-nuxt",
+  "name": "linuxdo-reader-nuxt",
   "private": true,
   "type": "module",
   "scripts": {
+    "clean": "node -e \"const fs=require('fs');for(const dir of ['.nuxt','.output'])fs.rmSync(dir,{recursive:true,force:true})\"",
     "dev": "nuxt dev",
     "build": "nuxt build",
+    "rebuild": "npm run clean && npm run build",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {

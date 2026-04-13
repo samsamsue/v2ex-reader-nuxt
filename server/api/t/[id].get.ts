@@ -1,5 +1,5 @@
-﻿import { defineEventHandler, getCookie, getRouterParam, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, decodeId, fetchAndParsePostFull } from '../../utils/v2ex'
+import { defineEventHandler, getCookie, getRouterParam, setResponseStatus } from 'h3'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, createUpstreamErrorPayload, decodeId, fetchRepliesById, fetchTopicById } from '../../utils/linuxdo'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)
@@ -16,6 +16,12 @@ export default defineEventHandler(async (event) => {
     return { error: 'ID_DECODE_FAILED' }
   }
 
-  const postData = await fetchAndParsePostFull(`https://www.v2ex.com/t/${rawId}`, ENV)
-  return { ...postData, rawId }
+  try {
+    const [topicData, replyData] = await Promise.all([fetchTopicById(rawId, ENV), fetchRepliesById(rawId, ENV)])
+    return { ...topicData, ...replyData, rawId }
+  } catch (error) {
+    const payload = createUpstreamErrorPayload(error)
+    setResponseStatus(event, payload.statusCode)
+    return payload.body
+  }
 })

@@ -1,5 +1,5 @@
-﻿import { defineEventHandler, getRouterParam, setResponseStatus } from 'h3'
-import { ENV, fetchAndParsePostFull } from '../../utils/v2ex'
+import { defineEventHandler, getRouterParam, setResponseStatus } from 'h3'
+import { ENV, createUpstreamErrorPayload, fetchRepliesById } from '../../utils/linuxdo'
 
 export default defineEventHandler(async (event) => {
   const id = String(getRouterParam(event, 'id') || '')
@@ -8,11 +8,11 @@ export default defineEventHandler(async (event) => {
     return { error: 'ID_INVALID' }
   }
 
-  const postData = await fetchAndParsePostFull(`https://www.v2ex.com/t/${id}`, ENV)
-  return {
-    opAuthor: postData.opAuthor,
-    replies: postData.replies,
-    total: postData.total,
-    allIds: postData.allIds
+  try {
+    return await fetchRepliesById(parseInt(id, 10), ENV)
+  } catch (error) {
+    const payload = createUpstreamErrorPayload(error)
+    setResponseStatus(event, payload.statusCode)
+    return payload.body
   }
 })
