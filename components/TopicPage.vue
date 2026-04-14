@@ -128,7 +128,9 @@ const extraCodeHtml = ref('')
 
 const parsedContent = computed(() => {
   //替换图片链接
-  const content = topicContent.value.replace(/<img(.*?)src="(.*?)"/g, '<img$1src="https://2cn2.com/$2"')
+  const content = topicContent.value
+    .replace(/<img(.*?)src="(.*?)"/g, '<img$1src="https://2cn2.com/$2"')
+    .replace(/<img(.*?)srcset=".*?"/g, '<img$1')
   return content
 
 })

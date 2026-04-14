@@ -60,7 +60,9 @@ const jumpToFloor = (floor: number) => {
 
 const parsedContent = computed(() => {
   return (content: string)=>{
-    return content.replace(/<img(.*?)src="(.*?)"/g, '<img$1src="https://2cn2.com/$2"')
+    return content
+      .replace(/<img(.*?)src="(.*?)"/g, '<img$1src="https://2cn2.com/$2"')
+      .replace(/<img(.*?)srcset=".*?"/g, '<img$1')
   }
 })
 
