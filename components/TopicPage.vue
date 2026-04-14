@@ -37,7 +37,7 @@
         <h1 :class="compactTitle ? 'content-title' : ''">{{ topicTitle || ' ' }}</h1>
         <div v-if="errorMessage" class="error-panel">{{ errorMessage }}</div>
 
-        <div v-if="topicReady" class="content" v-html="topicContent"></div>
+        <div v-if="topicReady" class="content" v-html="parsedContent"></div>
         <div v-else-if="loadingTopic && !topicContent" class="content skeleton-block">
           <div class="skeleton-line w-90"></div>
           <div class="skeleton-line w-80"></div>
@@ -125,6 +125,13 @@ const qrVisible = ref(false)
 const qrDataUrl = ref<string>('')
 const isModeCode = ref(false) 
 const extraCodeHtml = ref('')
+
+const parsedContent = computed(() => {
+  //替换图片链接
+  const content = topicContent.value.replace(/<img(.*?)src="(.*?)"/g, '<img$1src="https://2cn2.com/$2"')
+  return content
+
+})
 
 // --- 内部变量 ---
 let qrcodeInited = false

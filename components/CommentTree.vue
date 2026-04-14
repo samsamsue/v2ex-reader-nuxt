@@ -27,7 +27,7 @@
         </span>
         <span style="margin-left: 6px; opacity: 0.4;">#{{ node.id }}</span>
       </div>
-      <div class="reply-txt" v-html="node.replyHtml"></div>
+      <div class="reply-txt" v-html="parsedContent(node.replyHtml)"></div>
       <CommentTree
         v-if="node.children && node.children.length"
         :nodes="node.children"
@@ -57,6 +57,13 @@ const jumpToFloor = (floor: number) => {
     handler(null, floor)
   }
 }
+
+const parsedContent = computed(() => {
+  return (content: string)=>{
+    return content.replace(/<img(.*?)src="(.*?)"/g, '<img$1src="https://2cn2.com/$2"')
+  }
+})
+
 </script>
 
 <style scoped>
