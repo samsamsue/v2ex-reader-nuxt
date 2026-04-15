@@ -328,9 +328,13 @@ const openNotif = async () => {
   }
 }
 
+const checkUnread_doing = ref(false)
+
 const checkUnread = async () => {
   try {
+    checkUnread_doing.value = true
     const res: any = await $fetch(siteConfig.value.notifCountApi)
+    checkUnread_doing.value = false
     if (typeof res?.count === 'number' && res.count > unreadCount.value) {
       unreadCount.value = res.count
       startBlink()
@@ -374,6 +378,7 @@ const syncSiteState = async () => {
   try {
     const env: any = await $fetch('/api/env')
     notificationsEnabled.value = Boolean(env?.[siteConfig.value.hasCookieKey])
+    void checkUnread()
   } catch {
     notificationsEnabled.value = false
   }
@@ -404,10 +409,10 @@ onMounted(async () => {
   if (loaderEl.value) observer.observe(loaderEl.value)
 
   unreadTimer = setInterval(() => {
-    if (notificationsEnabled.value) {
+    if (notificationsEnabled.value || !checkUnread_doing.value) {
       void checkUnread()
     }
-  }, 3000)
+  }, 10000)
 })
 
 onActivated(() => {
