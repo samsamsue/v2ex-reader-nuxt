@@ -82,4 +82,112 @@ const parsedContent = computed(() => {
 .reply-floor-btn:hover {
   color: var(--text);
 }
+
+</style>
+
+<style>
+.quote {
+  background-color: var(--input-bg);
+  border-left:4px solid var(--meta);
+  padding:1rem;
+}
+.quote .title a{
+  text-decoration: none;
+  color: var(--text);
+}
+.quote .badge-category__wrapper {
+  margin-left:1rem;
+  color:var(--meta);
+}
+.quote img{
+  margin: 0;
+}
+.quote .title{
+  display: flex;
+  align-items: center;
+  gap:1rem;
+  line-height: 1;
+  font-size:1em;
+}
+.quote .d-icon{
+  width:1em;
+  height:1em;
+  color: var(--meta);
+}
+.quote blockquote{
+  font-size: 0.8em;
+  color: var(--meta);
+  margin:0;
+  padding:1rem 1rem 0 1rem;
+}
+
+aside.onebox{
+  background-color: var(--input-bg);
+  border-radius: 6px;
+}
+aside.onebox img{
+  margin:0;
+}
+aside.onebox header {
+    align-items: center;
+    display: flex;
+    gap:0.4rem;
+    line-height: 1;
+    border-bottom: 1px solid var(--border);
+    padding:0.5rem 1rem;
+}
+aside.onebox header a{
+  text-decoration: none;
+  
+}
+.onebox .site-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: .5em;
+}
+aside.onebox .onebox-body {
+  padding:1rem;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+aside.onebox .onebox-body p{
+  font-size:0.8em;
+  white-space: pre-wrap;
+  margin:0;
+  
+}
+
+aside.onebox header a{
+  color: var(--text);
+}
+aside.onebox .onebox-body img{
+    width: 100%;
+    height: inherit;
+    max-width: initial;
+    max-height: initial;
+    float: none;
+
+}
+aside.onebox .onebox-body h3, aside.onebox .onebox-body h4{
+  width: calc(100% - 3rem);
+  box-sizing: border-box;
+  font-size:0.8em;
+  font-weight: normal;
+}
+aside.onebox ~ aside.onebox{
+  margin-top:1rem;
+}
+.hashtag-cooked {
+    display: inline-block;
+    font-size: .93em;
+    font-weight: normal;
+    color: var(--primary);
+    padding: .2em .34em;
+    background: var(--input-bg);
+    border-radius: .6em;
+    text-decoration: none;
+    text-wrap: nowrap;
+    line-height: 1;
+    unicode-bidi: plaintext;
+}
 </style>
