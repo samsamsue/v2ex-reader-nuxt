@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="page-container">
     <LoginBox v-if="needLogin" :from="fromPath" :title="siteConfig.title" />
     <template v-else>
@@ -407,7 +407,7 @@ onMounted(async () => {
     if (notificationsEnabled.value) {
       void checkUnread()
     }
-  }, 60000)
+  }, 3000)
 })
 
 onActivated(() => {
@@ -595,10 +595,11 @@ useHead(() => ({
 
 .badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: -6px;
+  right: -6px;
   min-width: 18px;
-  padding: 2px 5px;
+  padding: 4px 2px;
+  line-height: 1;
   border-radius: 999px;
   background: #ff2c55;
   color: #fff;

@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   try {
     const resp = await safeFetch('https://www.v2ex.com/', ENV)
     const html = await resp.text()
-    const match = html.match(/href="\/notifications"[^>]*>\s*(\d+)\s*条未读提醒/)
+    const match = html.match(/href="\/notifications"[^>]*>\s*(\d+)/)
     return { count: match ? parseInt(match[1], 10) : 0 }
   } catch {
     return { count: 0 }
