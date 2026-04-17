@@ -37,7 +37,7 @@
         <h1 :class="compactTitle ? 'content-title' : ''">{{ topicTitle || ' ' }}</h1>
         <div v-if="errorMessage" class="error-panel">{{ errorMessage }}</div>
 
-        <div v-if="topicReady" class="content" v-html="parsedContent"></div>
+        <div ref="mainRef" v-if="topicReady" class="content" @click="handleClick" v-html="parsedContent"></div>
         <div v-else-if="loadingTopic && !topicContent" class="content skeleton-block">
           <div class="skeleton-line w-90"></div>
           <div class="skeleton-line w-80"></div>
@@ -65,6 +65,7 @@ import { ref, computed, onMounted, watch, onUnmounted, nextTick, onActivated, on
 import QRCode from 'qrcode'
 import { enhanceReplyTreeHtml, enhanceRichHtml } from '../utils/rich-html'
 import { applyCodeHighlighting } from '../utils/code-highlight'
+import markdownIt from 'markdown-it'
 
 const props = withDefaults(defineProps<{
   code: string
@@ -124,16 +125,54 @@ const showHistoryPrompt = ref(false)
 const qrVisible = ref(false)
 const qrDataUrl = ref<string>('')
 const isModeCode = ref(false) 
-const extraCodeHtml = ref('')
+const mainRef = ref(null)
 
 const parsedContent = computed(() => {
   //替换图片链接
   const content = topicContent.value
     .replace(/<img(.*?)src="(.*?)"/g, '<img$1src="https://2cn2.com/$2"')
     .replace(/<img(.*?)srcset=".*?"/g, '<img$1')
-  return content
+    .replace('[!quote]+','<div class="blockquote-bar"><span>Blockquote</span> <span class="quote-btn" ><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up-icon lucide-chevron-up"><path d="m18 15-6-6-6 6"/></svg></span></div>')
 
+  return content
 })
+
+// 改变quoteBtn的层级位置
+watch(() => parsedContent.value, () => {
+  nextTick(() => {
+    const blockquoteBar = mainRef.value.querySelector('.blockquote-bar')
+    const blockquote = blockquoteBar?.closest('blockquote')
+
+    if (blockquote) {
+      const blockquoteContent = document.createElement('div')
+      blockquoteContent.classList.add('blockquote-content')
+
+      // 先把需要移动的节点放到数组里
+      const nodesToMove = Array.from(blockquote.childNodes)
+        .filter(node => node !== blockquoteBar)
+
+      // 移动节点到新的容器
+      nodesToMove.forEach(node => {
+        blockquoteContent.appendChild(node)
+      })
+
+      // 添加到 blockquote
+      blockquote.appendChild(blockquoteContent)
+
+      // 将 blockquote-bar 放到最前面
+      blockquote.insertBefore(blockquoteBar, blockquote.firstChild)
+    }
+  })
+  
+})
+
+function handleClick(event:any){
+  const target = event.target
+  if(target.classList.contains('blockquote-bar') || target.closest('.blockquote-bar')) {
+    target.closest('blockquote').classList.toggle('collapsed')
+  }
+  // console.dir(target)
+}
 
 // --- 内部变量 ---
 let qrcodeInited = false
@@ -564,7 +603,7 @@ watch(() => rawId.value, async (next, prev) => {
 })
 </script>
 
-<style>
+<style lang="scss">
 :root {
   --bg: #fff;
   --text: #1d2129;
@@ -610,6 +649,136 @@ body {
   width: 100vw;
   overflow-x: hidden;
 }
+
+.content blockquote{
+  background-color: var(--input-bg);
+  margin: 0;
+  margin: 0.5rem 0;
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+  &:not(.blockquote-bar){
+    padding: 1rem;
+  }
+  
+}
+
+/* 收起楼层 */
+.content blockquote.collapsed .blockquote-content{
+  display: none;
+}
+.content blockquote.collapsed .quote-btn svg {
+  transform: rotate(180deg);
+}
+.content .blockquote-bar{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  color: var(--meta);
+  position: relative;
+  z-index: 1;
+  background-color: var(--input-bg);
+  cursor: pointer;
+}
+.blockquote-content{
+  padding:0 1rem 1rem 1rem;
+}
+.blockquote-content *:where(p,br):empty{
+  display:none;
+}
+.content .quote-btn svg{
+  width:1rem;
+  height:1rem;
+}
+.content hr{
+  height: 3px;
+  border:none;
+  margin:2rem 0;
+  background: linear-gradient(to right, transparent, var(--input-bg), transparent);
+  
+}
+
+*:where(.content:not(:has(aside)), .reply-txt:not(:has(aside))) {
+  
+  a {
+    
+    &:not(:has(*)) {
+      display: inline-flex;
+      padding: 0.4em 0.8em;
+      background-color: #99999914;
+      line-height: 1;
+      border-radius: 1em;
+      text-decoration: none;
+      color: #666;
+      align-items: center;
+      gap: 0.3em;
+      font-size: 0.8em;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      box-sizing: border-box;
+      flex-shrink: 1;
+      min-width: 0;
+
+      &:hover {
+        background-color: #99999927;
+      }
+
+      &::before {
+        content: '';
+        display: block;
+        width: 1em;
+        height: 1em;
+        background-size: contain;
+        background-repeat: no-repeat;
+        min-width: 0;
+        flex-shrink: 0;
+        background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWxpbmstaWNvbiBsdWNpZGUtbGluayI+PHBhdGggZD0iTTEwIDEzYTUgNSAwIDAgMCA3LjU0LjU0bDMtM2E1IDUgMCAwIDAtNy4wNy03LjA3bC0xLjcyIDEuNzEiLz48cGF0aCBkPSJNMTQgMTFhNSA1IDAgMCAwLTcuNTQtLjU0bC0zIDNhNSA1IDAgMCAwIDcuMDcgNy4wN2wxLjcxLTEuNzEiLz48L3N2Zz4=);
+      }
+
+      &[href$=".mp4"]::before {
+        background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLXNxdWFyZS1wbGF5LWljb24gbHVjaWRlLXNxdWFyZS1wbGF5Ij48cmVjdCB4PSIzIiB5PSIzIiB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHJ4PSIyIi8+PHBhdGggZD0iTTkgOS4wMDNhMSAxIDAgMCAxIDEuNTE3LS44NTlsNC45OTcgMi45OTdhMSAxIDAgMCAxIDAgMS43MThsLTQuOTk3IDIuOTk3QTEgMSAwIDAgMSA5IDE0Ljk5NnoiLz48L3N2Zz4=);
+      }
+
+      &:is([href$=".jpg"], [href$=".jpeg"], [href$=".png"], [href$=".gif"], [href$=".svg"], [href$=".webp"], [href$=".tif"])::before {
+        background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlLWljb24gbHVjaWRlLWltYWdlIj48cmVjdCB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHg9IjMiIHk9IjMiIHJ4PSIyIiByeT0iMiIvPjxjaXJjbGUgY3g9IjkiIGN5PSI5IiByPSIyIi8+PHBhdGggZD0ibTIxIDE1LTMuMDg2LTMuMDg2YTIgMiAwIDAgMC0yLjgyOCAwTDYgMjEiLz48L3N2Zz4=);
+      }
+
+      &[href$=".pdf"]::before {
+        background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWZpbGUtdGV4dC1pY29uIGx1Y2lkZS1maWxlLXRleHQiPjxwYXRoIGQ9Ik02IDIyYTIgMiAwIDAgMS0yLTJWNGEyIDIgMCAwIDEgMi0yaDhhMi40IDIuNCAwIDAgMSAxLjcwNC43MDZsMy41ODggMy41ODhBMi40IDIuNCAwIDAgMSAyMCA4djEyYTIgMiAwIDAgMS0yIDJ6Ii8+PHBhdGggZD0iTTE0IDJ2NWExIDEgMCAwIDAgMSAxaDUiLz48cGF0aCBkPSJNMTAgOUg4Ii8+PHBhdGggZD0iTTE2IDEzSDgiLz48cGF0aCBkPSJNMTYgMTdIOCIvPjwvc3ZnPg==);
+      }
+
+      &[href$=".md"]::before {
+        background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWJvb2stdGV4dC1pY29uIGx1Y2lkZS1ib29rLXRleHQiPjxwYXRoIGQ9Ik00IDE5LjV2LTE1QTIuNSAyLjUgMCAwIDEgNi41IDJIMTlhMSAxIDAgMCAxIDEgMXYxOGExIDEgMCAwIDEtMSAxSDYuNWExIDEgMCAwIDEgMC01SDIwIi8+PHBhdGggZD0iTTggMTFoOCIvPjxwYXRoIGQ9Ik04IDdoNiIvPjwvc3ZnPg==);
+      }
+      &:is([href$=".zip"], [href$=".rar"], [href$=".7z"])::before {
+        background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWZvbGRlci1hcmNoaXZlLWljb24gbHVjaWRlLWZvbGRlci1hcmNoaXZlIj48Y2lyY2xlIGN4PSIxNSIgY3k9IjE5IiByPSIyIi8+PHBhdGggZD0iTTIwLjkgMTkuOEEyIDIgMCAwIDAgMjIgMThWOGEyIDIgMCAwIDAtMi0yaC03LjlhMiAyIDAgMCAxLTEuNjktLjlMOS42IDMuOUEyIDIgMCAwIDAgNy45MyAzSDRhMiAyIDAgMCAwLTIgMnYxM2EyIDIgMCAwIDAgMiAyaDUuMSIvPjxwYXRoIGQ9Ik0xNSAxMXYtMSIvPjxwYXRoIGQ9Ik0xNSAxN3YtMiIvPjwvc3ZnPg==);
+      }
+
+      &[href^="#"]::before {
+        background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWFycm93LWJpZy11cC1kYXNoLWljb24gbHVjaWRlLWFycm93LWJpZy11cC1kYXNoIj48cGF0aCBkPSJNMTQgMTZhMSAxIDAgMCAwIDEtMXYtMmExIDEgMCAwIDEgMS0xaDMuMjkzYS43MDcuNzA3IDAgMCAwIC41LTEuMjA3bC02LjkzOS02LjkzOWExLjIwNyAxLjIwNyAwIDAgMC0xLjcwOCAwbC02Ljk0IDYuOTRhLjcwNy43MDcgMCAwIDAgLjUgMS4yMDZIOGExIDEgMCAwIDEgMSAxdjJhMSAxIDAgMCAwIDEgMXoiLz48cGF0aCBkPSJNOSAyMGg2Ii8+PC9zdmc+);
+      }
+
+      &:is([href$=".git"], [href*="github.com"])::before {
+        background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz48c3ZnIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDQ4IDQ4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNMjQgNEMxMi45NTQzIDQgNCAxMi45NTQzIDQgMjRDNCAzNS4wNDU3IDEyLjk1NDMgNDQgMjQgNDRDMzUuMDQ1NyA0NCA0NCAzNS4wNDU3IDQ0IDI0QzQ0IDEyLjk1NDMgMzUuMDQ1NyA0IDI0IDRaTTAgMjRDMCAxMC43NDUyIDEwLjc0NTIgMCAyNCAwQzM3LjI1NDggMCA0OCAxMC43NDUyIDQ4IDI0QzQ4IDM3LjI1NDggMzcuMjU0OCA0OCAyNCA0OEMxMC43NDUyIDQ4IDAgMzcuMjU0OCAwIDI0WiIgZmlsbD0iY3VycmVudENvbG9yIi8+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0xOS4xODMzIDQ1LjQ3MTZDMTguOTg5OCA0NS4yMjE5IDE4Ljk4OTggNDIuOTk3MyAxOS4xODMzIDM4Ljc5OEMxNy4xMTE0IDM4Ljg2OTYgMTUuODAyNCAzOC43MjU4IDE1LjI1NjMgMzguMzY2N0MxNC40MzcgMzcuODI4IDEzLjYxNjkgMzYuMTY2NyAxMi44ODkxIDM0Ljk5NTlDMTIuMTYxNCAzMy44MjUxIDEwLjU0NjMgMzMuNjQgOS44OTQwNSAzMy4zNzgzQzkuMjQxODIgMzMuMTE2NSA5LjA3ODA5IDMyLjA0OTYgMTEuNjkxMyAzMi44NTY1QzE0LjMwNDQgMzMuNjYzNCAxNC40MzE5IDM1Ljg2MDcgMTUuMjU2MyAzNi4zNzQ1QzE2LjA4MDYgMzYuODg4MyAxOC4wNTE1IDM2LjY2MzUgMTguOTQ0OCAzNi4yNTE5QzE5LjgzODIgMzUuODQwMyAxOS43NzI0IDM0LjMwNzggMTkuOTMxNyAzMy43MDA3QzIwLjEzMzEgMzMuMTM0IDE5LjQyMzMgMzMuMDA4MyAxOS40MDc3IDMzLjAwMzdDMTguNTM1NSAzMy4wMDM3IDEzLjk1MzkgMzIuMDA3MyAxMi42OTU1IDI3LjU3MDZDMTEuNDM3IDIzLjEzNCAxMy4wNTgxIDIwLjIzNDEgMTMuOTIyOSAxOC45ODc1QzE0LjQ5OTUgMTguMTU2NCAxNC40NDg1IDE2LjM4NTIgMTMuNzY5OSAxMy42NzM3QzE2LjIzMzUgMTMuMzU4OSAxOC4xMzQ3IDE0LjEzNDMgMTkuNDczNCAxNi4wMDAxQzE5LjQ3NDcgMTYuMDEwOCAyMS4yMjg1IDE0Ljk1NzIgMjQuMDAwMyAxNC45NTcyQzI2Ljc3MiAxNC45NTcyIDI3Ljc1NTMgMTUuODE1NCAyOC41MTQyIDE2LjAwMDFDMjkuMjczMSAxNi4xODQ4IDI5Ljg4IDEyLjczNDEgMzQuNTY2OCAxMy42NzM3QzMzLjU4ODMgMTUuNTk2OSAzMi43Njg5IDE4LjAwMDEgMzMuMzk0MyAxOC45ODc1QzM0LjAxOTggMTkuOTc0OSAzNi40NzQ1IDIzLjExNDcgMzQuOTY2NiAyNy41NzA2QzMzLjk2MTQgMzAuNTQxMyAzMS45ODUzIDMyLjM1MjMgMjkuMDM4NCAzMy4wMDM3QzI4LjcwMDUgMzMuMTExNSAyOC41MzE1IDMzLjI4NTUgMjguNTMxNSAzMy41MjU1QzI4LjUzMTUgMzMuODg1NiAyOC45ODg0IDMzLjkyNDkgMjkuNjQ2NSAzNS42MTE3QzMwLjA4NTMgMzYuNzM2MiAzMC4xMTcgMzkuOTQ4IDI5Ljc0MTYgNDUuMjQ3QzI4Ljc5MDYgNDUuNDg5MSAyOC4wNTA4IDQ1LjY1MTYgMjcuNTIyMSA0NS43MzQ3QzI2LjU4NDcgNDUuODgyIDI1LjU2NjkgNDUuOTY0NiAyNC41NjY5IDQ1Ljk5NjVDMjMuNTY2OSA0Ni4wMjg0IDIzLjIxOTYgNDYuMDI0OCAyMS44MzcgNDUuODk2MUMyMC45MTU0IDQ1LjgxMDMgMjAuMDMwOCA0NS42Njg4IDE5LjE4MzMgNDUuNDcxNloiIGZpbGw9ImN1cnJlbnRDb2xvciIvPjwvc3ZnPg==) ;
+      }
+      &:is([href*="apple.com"])::before {
+        background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz48c3ZnIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDQ4IDQ4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0yMy45MTExIDExLjMxNzZDMjMuOTkzMSA5LjA4NjA2IDI0LjYyMDEgNy4xMjU5NCAyNS43NzcyIDUuNDg3NEMyNi45NDAyIDMuODQwNTYgMjguODYyOCAyLjY3MDcgMzEuNDk0NSAyLjAwNzgxQzMxLjUxMiAyLjA4ODg1IDMxLjUzMDIgMi4xNjk5NCAzMS41NDkxIDIuMjUwNzJWMi42NzQ3MkMzMS41NDkxIDMuNjM2MTYgMzEuMzE1OSA0LjczODYyIDMwLjg1NTYgNS45NTEyN0MzMC4zNzMyIDcuMTI1NDEgMjkuNjE5MyA4LjIzMDQ4IDI4LjYxOCA5LjIyNzgyQzI3LjY4MTUgMTAuMTA2NiAyNi44MTUxIDEwLjY4ODQgMjYuMDQ5NCAxMC45NTE0QzI1Ljc5NjYgMTEuMDI2OSAyNS40NSAxMS4xMDEyIDI1LjAzMTQgMTEuMTY4MUMyNC42NTkxIDExLjIyNjEgMjQuMjg1NiAxMS4yNzYgMjMuOTExMSAxMS4zMTc2WiIgZmlsbD0iY3VycmVudENvbG9yIi8+PHBhdGggZD0iTTI0LjM1MDIgMTQuNjI5QzIxLjM3NzUgMTQuNjI5IDE5LjMxMzYgMTEuOTk5OSAxNi4zODEzIDExLjk5OTlDMTMuNDQ5MSAxMS45OTk5IDcuNDA4MiAxNC42OTUxIDcuNDA4MiAyMy45OTk5QzcuNDA4MiAzMy4zMDQ3IDEyLjc3MjYgMzkuMjk5OSAxMy4zNzI2IDM5Ljk5OTlDMTMuOTcyNSA0MC43IDE1LjM2MDEgNDIuNDk5NCAxNy41MDk4IDQyLjQ5OTRDMTkuNjU5NiA0Mi40OTk0IDIyLjAxMzEgNDAuNzkwMiAyNC4zNTAyIDQwLjc5MDJDMjYuNjg3MiA0MC43OTAyIDI5LjYyODggNDIuNDk5NCAzMS41NDkyIDQyLjQ5OTRDMzMuNDY5NiA0Mi40OTk0IDM0LjI1OTUgNDEuNzE2NSAzNS41NjY1IDQwLjM2NjJDMzYuODczNCAzOS4wMTU5IDM5LjM2NjMgMzQuODk1MiA0MC4yMzY5IDMyLjQyMkMzOC44MDI5IDMxLjU2ODQgMzUuMDAyMSAyOS4yNTExIDM1LjAwMjEgMjMuOTk5OUMzNS4wMDIxIDIwLjQ5OTIgMzYuMjgxNCAxNy41OTA5IDM4Ljg0MDEgMTUuMjc1MkMzNy4xNjE1IDEzLjA5MTcgMzUuMjE0NyAxMS45OTk5IDMyLjk5OTYgMTEuOTk5OUMyOS42NzY5IDExLjk5OTkgMjcuMzIyOSAxNC42MjkgMjQuMzUwMiAxNC42MjlaIiBmaWxsPSJjdXJyZW50Q29sb3IiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2Utd2lkdGg9IjQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48L3N2Zz4=);
+      }
+      &[href*="microsoft.com"]::before{
+        background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz48c3ZnIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDQ4IDQ4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik02Ljc1IDExLjA2MjVMMTkuNjg3NSA5LjMzNzUyVjIxLjQxMjVINi43NVYxMS4wNjI1WiIgZmlsbD0iY3VycmVudENvbG9yIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PHBhdGggZD0iTTI0Ljg2MjMgOC44NDQ2NEw0MS4yNDk4IDYuNzVWMjEuNDEyNUgyNC44NjIzVjguODQ0NjRaIiBmaWxsPSJjdXJyZW50Q29sb3IiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2Utd2lkdGg9IjQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48cGF0aCBkPSJNMjQuODYyMyAyNy40NUw0MS4yNDk4IDI3LjgzMzNWNDEuMjVMMjQuODYyMyAzOC41NjY2VjI3LjQ1WiIgZmlsbD0iY3VycmVudENvbG9yIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PHBhdGggZD0iTTYuNzUgMjYuNTg3NUwxOS42ODc1IDI2Ljg5OVYzNy44TDYuNzUgMzUuNjE5OFYyNi41ODc1WiIgZmlsbD0iY3VycmVudENvbG9yIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+);
+      }
+    }
+  }
+}
+
+.content hr::before{
+  content:'xxxx';
+  display: block;
+}
+
 
 #mainContent {
   width: 650px;
@@ -717,7 +886,11 @@ body {
   color: var(--text);
   background: rgba(127, 127, 127, 0.08);
 }
-
+.embedded_video {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin:1rem 0;
+}
 .code-preview-pre {
   margin: 0;
   padding: 14px 16px;

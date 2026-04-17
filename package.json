@@ -15,5 +15,8 @@
     "nuxt": "^3.12.4",
     "qrcode": "^1.5.4",
     "undici": "^6.19.8"
+  },
+  "devDependencies": {
+    "sass-embedded": "^1.99.0"
   }
 }

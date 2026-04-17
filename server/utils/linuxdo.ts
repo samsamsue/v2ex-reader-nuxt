@@ -490,6 +490,7 @@ function parseTopicRss(xml: string) {
     originalUrl: channelLink || buildTopicUrl('topic', topicId),
     opAuthor: firstPost?.creator || null,
     contentHtml,
+    originContent: channelDescription,
     items: items
       .map((item) => ({
         ...item,
@@ -574,6 +575,7 @@ export async function fetchTopicById(id: number, env: SiteEnv) {
     slug: 'topic',
     content: rss.contentHtml,
     contentHtml: rss.contentHtml,
+    markdown: rss.originContent,
     member: rss.opAuthor ? { username: rss.opAuthor } : null,
     created: null,
     last_modified: null,

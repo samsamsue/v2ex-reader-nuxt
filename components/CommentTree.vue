@@ -90,6 +90,7 @@ const parsedContent = computed(() => {
   background-color: var(--input-bg);
   border-left:4px solid var(--meta);
   padding:1rem;
+  margin:0.5rem 0;
 }
 .quote .title a{
   text-decoration: none;
@@ -97,8 +98,30 @@ const parsedContent = computed(() => {
 }
 .quote .badge-category__wrapper {
   margin-left:1rem;
-  color:var(--meta);
+  color:var(--meta)!important;
+  fill: var(--meta)!important;
+  background-color: rgba(180,180,180,0.2);
+  padding:0.3em 0.5em ;
+  font-size:0.8em;
+  line-height: 1;
+  border-radius: 2em;
+  min-width: 0;
 }
+
+.quote-title__text-content{
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.quote-title__text-content>*:first-child{
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex:1;
+}
+
 .quote img{
   margin: 0;
 }
@@ -115,12 +138,14 @@ const parsedContent = computed(() => {
   color: var(--meta);
 }
 .quote blockquote{
-  font-size: 0.8em;
+  font-size: 1em;
   color: var(--meta);
   margin:0;
   padding:1rem 1rem 0 1rem;
 }
-
+.hashtag-icon-placeholder{
+  display: none;
+}
 aside.onebox{
   background-color: var(--input-bg);
   border-radius: 6px;
@@ -151,7 +176,7 @@ aside.onebox .onebox-body {
   overflow: hidden;
 }
 aside.onebox .onebox-body p{
-  font-size:0.8em;
+  font-size:1em;
   white-space: pre-wrap;
   margin:0;
   
@@ -166,13 +191,15 @@ aside.onebox .onebox-body img{
     max-width: initial;
     max-height: initial;
     float: none;
+    margin-bottom: 1rem;
 
 }
 aside.onebox .onebox-body h3, aside.onebox .onebox-body h4{
   width: calc(100% - 3rem);
   box-sizing: border-box;
-  font-size:0.8em;
-  font-weight: normal;
+  font-size:1em;
+  font-weight: bold;
+  margin:0;
 }
 aside.onebox ~ aside.onebox{
   margin-top:1rem;
