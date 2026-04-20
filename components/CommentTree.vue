@@ -75,6 +75,14 @@ watch( ()=> props.nodes, () => {
       replyTxt.querySelectorAll('a').forEach(a=>{
         a.setAttribute('target', '_blank')  
         a.style.setProperty('--ficon', 'url(https://favicon.2cn2.com/' + a.href.replace(/^https?:\/\//, '') + ')')
+        
+      })
+      replyTxt.querySelectorAll('img').forEach(img=>{
+        if(img.closest('.lightbox')) {
+          img.src = img.closest('.lightbox').getAttribute('href')
+          img.removeAttribute('width')
+          img.removeAttribute('height')
+        }
       })
     })
   })

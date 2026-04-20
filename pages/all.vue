@@ -476,9 +476,6 @@ useHead(() => ({
 }
 
 .toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 90;
   margin: -4px -20px 16px;
   padding: 10px 20px 12px;
   background: var(--toolbar-bg);
