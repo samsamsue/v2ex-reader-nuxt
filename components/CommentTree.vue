@@ -63,7 +63,7 @@ const parsedContent = computed(() => {
     return content
       .replace(/<img(.*?)src="(http|https):\/\/(.*?)"/g, '<img$1src="https://2cn2.com/$3"')
       .replace(/<img(.*?)srcset=".*?"/g, '<img$1')
-      .replace(/<a(.*?)href="(https?:\/\/[^"]+)"/g, '<a$1href="$2" style="--ficon:url(https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=$2&size=48)"')
+      .replace(/<a(.*?)href="(https?:\/\/[^"]+)"/g, '<a$1href="$2" style="--ficon:url(https://favicon.2cn2.com/$2)"')
   }
 })
 
