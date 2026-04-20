@@ -621,7 +621,7 @@ watch(() => rawId.value, async (next, prev) => {
   --text: #1d2129;
   --author: #999;
   --meta: #86909c;
-  --border: #f2f3f5;
+  --border: #eeeeee;
   --fab-bg: rgba(245, 245, 247, 0.7);
   --input-bg: #f9fafb;
   --code-k: #0000ff;
@@ -644,6 +644,15 @@ watch(() => rawId.value, async (next, prev) => {
     --code-v: #9cdcfe;
     --code-s: #ce9178;
     --code-c: #6a9955;
+  }
+  .content, .reply-txt{
+    a:not(:where(aside a)) {
+      color: #888!important;
+      &::before{
+        // 黑暗模式，提亮背景图片
+        filter:  invert(1) brightness(2) grayscale(1);
+      }
+    }
   }
 }
 
@@ -771,6 +780,14 @@ body {
     width:1em;
     height:1em;
     vertical-align: middle;
+  }
+  table {
+    border-collapse: collapse;
+    table-layout: fixed;
+    tr td, tr th {
+      border:1px solid var(--border);
+      padding:0.5em;
+    }
   }
 }
 
