@@ -133,7 +133,6 @@ const parsedContent = computed(() => {
     .replace(/<img(.*?)src="(http|https):\/\/(.*?)"/g, '<img$1src="https://2cn2.com/$3"')
     .replace(/<img(.*?)srcset=".*?"/g, '<img$1')
     .replace('[!quote]+','<div class="blockquote-bar"><span>Blockquote</span> <span class="quote-btn" ><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up-icon lucide-chevron-up"><path d="m18 15-6-6-6 6"/></svg></span></div>')
-    .replace(/<a(.*?)href="(https?:\/\/[^"]+)"/g, '<a$1href="$2" style="--ficon:url(https://favicon.2cn2.com/$2)"')
   return content
 })
 
@@ -162,8 +161,13 @@ watch(() => parsedContent.value, () => {
       blockquote.insertBefore(blockquoteBar, blockquote.firstChild)
     }
 
+    //将所有链接打开方式为新窗口
+    mainRef.value?.querySelectorAll('a').forEach(a => {
+      a.setAttribute('target', '_blank')
+      a.style.setProperty('--ficon', 'url(https://favicon.2cn2.com/' + a.href.replace(/^https?:\/\//, '') + ')')
+    })
+
   })
-  
 })
 
 function handleClick(event:any){

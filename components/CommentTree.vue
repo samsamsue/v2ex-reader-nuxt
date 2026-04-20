@@ -27,7 +27,7 @@
         </span>
         <span style="margin-left: 6px; opacity: 0.4;">#{{ node.id }}</span>
       </div>
-      <div class="reply-txt" v-html="parsedContent(node.replyHtml)"></div>
+      <div ref="replyTxtRef" class="reply-txt" v-html="parsedContent(node.replyHtml)"></div>
       <CommentTree
         v-if="node.children && node.children.length"
         :nodes="node.children"
@@ -39,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed, nextTick, watch } from 'vue'
 defineOptions({ name: 'CommentTree' })
 
 const props = defineProps<{ nodes: any[]; opAuthor: string | null; level?: number }>()
@@ -63,9 +64,21 @@ const parsedContent = computed(() => {
     return content
       .replace(/<img(.*?)src="(http|https):\/\/(.*?)"/g, '<img$1src="https://2cn2.com/$3"')
       .replace(/<img(.*?)srcset=".*?"/g, '<img$1')
-      .replace(/<a(.*?)href="(https?:\/\/[^"]+)"/g, '<a$1href="$2" style="--ficon:url(https://favicon.2cn2.com/$2)"')
   }
 })
+
+const replyTxtRef = ref(null)
+
+watch( ()=> props.nodes, () => {
+  nextTick(()=>{
+    replyTxtRef.value?.forEach(replyTxt=>{
+      replyTxt.querySelectorAll('a').forEach(a=>{
+        a.setAttribute('target', '_blank')  
+        a.style.setProperty('--ficon', 'url(https://favicon.2cn2.com/' + a.href.replace(/^https?:\/\//, '') + ')')
+      })
+    })
+  })
+}, {immediate: true})
 
 </script>
 
