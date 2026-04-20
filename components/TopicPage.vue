@@ -719,7 +719,7 @@ body {
     
     &:not(:has(*)):not(:empty) {
       display: inline-flex;
-      padding: 0.4em 0.8em;
+      padding: 0.3em 0.6em;
       background-color: #99999914;
       line-height: 1;
       border-radius: 1em;
@@ -727,7 +727,8 @@ body {
       color: #666;
       align-items: center;
       gap: 0.3em;
-      font-size: 0.9em;
+      font-size: 0.85em;
+      font-weight: 400;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
@@ -738,6 +739,7 @@ body {
 
       &:hover {
         background-color: #99999927;
+        color:var(--text);
       }
 
       &::before {
