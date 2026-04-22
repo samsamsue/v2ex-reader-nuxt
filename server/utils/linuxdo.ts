@@ -236,8 +236,9 @@ function decodeXmlText(value: string) {
 }
 
 function extractTagValue(xml: string, tag: string) {
-  const escaped = tag.replace(':', '\\:')
-  const match = xml.match(new RegExp(`<${escaped}(?:\\s[^>]*)?>([\\s\\S]*?)</${escaped}>`, 'i'))
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`<${escaped}(?:\\b[^>]*)?>([\\s\\S]*?)</${escaped}\\s*>`, 'i')
+  const match = xml.match(regex)
   return match ? match[1].trim() : ''
 }
 
@@ -251,8 +252,9 @@ function parseRssItems(xml: string) {
     guid: string
   }> = []
 
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g
+  const itemRegex = /<item(?:\b[^>]*)?>([\s\S]*?)<\/item\s*>/ig
   let match: RegExpExecArray | null
+  
   while ((match = itemRegex.exec(xml)) !== null) {
     const block = match[1]
     items.push({
@@ -264,8 +266,16 @@ function parseRssItems(xml: string) {
       guid: decodeXmlText(extractTagValue(block, 'guid'))
     })
   }
-
   return items
+}
+
+function resolveDiscourseImages(content: string) {
+  if (!content) return '';
+  return content
+    .replace(/upload:\/\/([a-zA-Z0-9_.-]+)/ig, `${SITE_BASE}/uploads/short-url/$1`)
+    .replace(/src="(\/[^"]+)"/ig, `src="${SITE_BASE}$1"`)
+    .replace(/\!\[([^\]]*)\]\(\/([^)]+)\)/ig, `![$1](${SITE_BASE}/$2)`)
+    .replace(/href="(\/[^"]+)"/ig, `href="${SITE_BASE}$1"`);
 }
 
 function parseTopicIdFromLink(link: string) {
@@ -442,6 +452,7 @@ async function fetchRepliesByIdFromJson(id: number, env: SiteEnv) {
 async function fetchRepliesByIdFromRss(id: number, env: SiteEnv, replyNotice = '') {
   const rss = parseTopicRss(await safeFetchText(`/t/topic/${id}.rss`, env))
   const replyPosts = rss.items.filter((item) => item.postNumber > 1)
+  
   const replies = replyPosts.map((item) => {
     const replyContext = parseReplyContext(id, stripTrailingReadMore(item.description))
     return {
@@ -449,7 +460,8 @@ async function fetchRepliesByIdFromRss(id: number, env: SiteEnv, replyNotice = '
       author: item.creator || '',
       replyAuthor: replyContext.replyAuthor,
       replyFloor: replyContext.replyFloor,
-      replyHtml: replyContext.cleanedHtml,
+      // 在这里加上 resolveDiscourseImages 保护回复内容
+      replyHtml: resolveDiscourseImages(replyContext.cleanedHtml || ''), 
       likes: 0,
       time: formatRelativeTime(item.pubDate),
       parent: replyContext.parentPostNumber,
@@ -470,33 +482,46 @@ async function fetchRepliesByIdFromRss(id: number, env: SiteEnv, replyNotice = '
 function parseTopicRss(xml: string) {
   const channelMatch = xml.match(/<channel>([\s\S]*?)<\/channel>/i)
   const channel = channelMatch ? channelMatch[1] : xml
+  
   const items = parseRssItems(channel)
-  const firstPost = items
-    .map((item) => ({ ...item, postNumber: parsePostNumberFromLink(item.link) }))
-    .sort((a, b) => a.postNumber - b.postNumber)[0]
+    .map((item) => ({
+      ...item,
+      postNumber: parsePostNumberFromLink(item.link)
+    }))
+    .sort((a, b) => a.postNumber - b.postNumber)
+
+  const firstPostInFeed = items[0]
 
   const channelTitle = decodeXmlText(extractTagValue(channel, 'title'))
   const channelLink = decodeXmlText(extractTagValue(channel, 'link'))
-  const channelDescription = decodeXmlText(extractTagValue(channel, 'description'))
-  const title = channelTitle || firstPost?.title || 'Untitled'
-  const topicId = parseTopicIdFromLink(channelLink || firstPost?.link || '')
+  
+  // 处理外层 description（通常包含完整 1 楼）中的图片
+  const rawChannelDescription = decodeXmlText(extractTagValue(channel, 'description'))
+  const channelDescription = resolveDiscourseImages(rawChannelDescription)
+  
+  const title = channelTitle || firstPostInFeed?.title || 'Untitled'
+  const topicId = parseTopicIdFromLink(channelLink || firstPostInFeed?.link || '')
   const md = new MarkdownIt({ html: true, linkify: true, breaks: true })
-  const firstPostHtml = firstPost ? stripTrailingReadMore(firstPost.description) : ''
+  
+  // 核心判断：当前 feed 里最老的那条，真的是 1 楼首帖吗？
+  const isActuallyFirstPost = firstPostInFeed && firstPostInFeed.postNumber === 1
+  
+  let firstPostHtml = ''
+  if (isActuallyFirstPost) {
+    const rawFirstPostHtml = stripTrailingReadMore(firstPostInFeed.description)
+    firstPostHtml = resolveDiscourseImages(rawFirstPostHtml)
+  }
+  
   const contentHtml = firstPostHtml || (channelDescription ? md.render(channelDescription) : '')
 
   return {
     id: topicId,
     title,
     originalUrl: channelLink || buildTopicUrl('topic', topicId),
-    opAuthor: firstPost?.creator || null,
+    opAuthor: isActuallyFirstPost ? firstPostInFeed.creator : null,
     contentHtml,
     originContent: channelDescription,
     items: items
-      .map((item) => ({
-        ...item,
-        postNumber: parsePostNumberFromLink(item.link)
-      }))
-      .sort((a, b) => a.postNumber - b.postNumber)
   }
 }
 
@@ -575,7 +600,6 @@ export async function fetchTopicById(id: number, env: SiteEnv) {
     slug: 'topic',
     content: rss.contentHtml,
     contentHtml: rss.contentHtml,
-    markdown: rss.originContent,
     member: rss.opAuthor ? { username: rss.opAuthor } : null,
     created: null,
     last_modified: null,

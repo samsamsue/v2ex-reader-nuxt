@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div>
     <LoginBox v-if="needLogin" :from="fromPath" title="V2EX Reader" />
     <template v-else>
@@ -115,9 +115,6 @@ html { scroll-behavior: auto; }
 body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; transition: background 0.3s; margin:0; min-height: 100vh;width:100vw;overflow-x:hidden; }
 #mainContent { width: 650px; max-width:100%; margin: 0 auto; padding: 20px; overflow-wrap: break-word; word-break: break-word; overflow: visible; box-sizing: border-box; }
 .content { line-height: 1.7; font-size: 1rem;overflow:hidden; } .content p { margin:0.5rem 0; }
-.content img, .reply-txt img { max-width: 100% !important; height: auto !important; display: block; margin: 15px 0; border-radius: 4px; }
-.content h2{font-size:1.1rem;}
-.content h3{font-size:1.05rem;}
 .content-empty{color:#ccc; text-align:center; margin-top: 50px; font-size:1.2rem; display:flex; justify-content:center; flex-direction:column; align-items:center;font-weight:300;}
 .op-tag {line-height:1; background: #000; color: #fff; font-size: 0.65rem; padding:0.3em 0.5em; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
 @media (prefers-color-scheme: dark) { .op-tag { background: #fff; color: #000; } }

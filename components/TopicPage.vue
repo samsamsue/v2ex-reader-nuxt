@@ -1229,6 +1229,17 @@ body {
   line-height: 1.5;
 }
 
+.footnotes-sep{
+  border:none;
+  border-bottom:1px dashed var(--border);
+}
+.footnotes-list>*{
+  background-color: #7771;
+  padding:0.2em 1em;
+  padding-left:2em;
+  line-height: 1;
+}
+
 .skeleton-block {
   padding: 6px 0;
   height:calc(100vh - 80px);
