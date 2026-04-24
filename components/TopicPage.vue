@@ -161,10 +161,25 @@ watch(() => parsedContent.value, () => {
       blockquote.insertBefore(blockquoteBar, blockquote.firstChild)
     }
 
+    const siteMaps = {
+      '/api/v2ex/topic':'https://www.v2ex.com',
+      '/api/topic':'https://www.linux.do',
+    }
+
+    type ApiKey = keyof typeof siteMaps
+    const siteKey: ApiKey =  props.topicApiBase
+
     //将所有链接打开方式为新窗口
     mainRef.value?.querySelectorAll('a').forEach(a => {
+      let href = a.getAttribute('href')
+      //判断
+      if(!/^(http|https):\/\//.test(href)){
+        let site = siteMaps[siteKey];  //
+        a.setAttribute('href', site + (/^\//.test(href) ? '' : '/' ))
+      }
       a.setAttribute('target', '_blank')
       a.style.setProperty('--ficon', 'url(https://favicon.2cn2.com/' + a.href.replace(/^https?:\/\//, '') + ')')
+
     })
 
     mainRef.value?.querySelectorAll('img').forEach(img=>{
