@@ -68,11 +68,16 @@ const parsedContent = computed(() => {
 })
 
 const replyTxtRef = ref(null)
+const site = inject('site','')
 
 watch( ()=> props.nodes, () => {
   nextTick(()=>{
     replyTxtRef.value?.forEach(replyTxt=>{
       replyTxt.querySelectorAll('a').forEach(a=>{
+        let href = a.getAttribute('href')
+        if(!/^(http|https):\/\//.test(href)){
+          a.setAttribute('href', site + (/^\//.test(href) ? '' : '/' ) + href)
+        }
         a.setAttribute('target', '_blank')  
         a.style.setProperty('--ficon', 'url(https://favicon.2cn2.com/' + a.href.replace(/^https?:\/\//, '') + ')')
         
