@@ -16,7 +16,7 @@ export default defineNuxtConfig({
     appManifest: false
   },
   nitro: {
-    preset: 'vercel',
+    preset: 'node-server',
     imports: {
       exclude: [
         /server[\\/]+utils[\\/]+linuxdo/,
