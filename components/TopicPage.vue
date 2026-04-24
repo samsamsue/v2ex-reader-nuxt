@@ -176,7 +176,7 @@ watch(() => parsedContent.value, () => {
     //将所有链接打开方式为新窗口
     mainRef.value?.querySelectorAll('a').forEach(a => {
       let href = a.getAttribute('href')
-      if(!/^(http|https):\/\//.test(href)){
+      if(!/^(http|https):\/\//.test(href) && !/^#/.test(href)){
         a.setAttribute('href', site + (/^\//.test(href) ? '' : '/' ) + href)
         
       }

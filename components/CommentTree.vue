@@ -75,7 +75,7 @@ watch( ()=> props.nodes, () => {
     replyTxtRef.value?.forEach(replyTxt=>{
       replyTxt.querySelectorAll('a').forEach(a=>{
         let href = a.getAttribute('href')
-        if(!/^(http|https):\/\//.test(href)){
+        if(!/^(http|https):\/\//.test(href) && !/^#/.test(href)){
           a.setAttribute('href', site + (/^\//.test(href) ? '' : '/' ) + href)
         }
         a.setAttribute('target', '_blank')  
