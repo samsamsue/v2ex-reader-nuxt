@@ -182,7 +182,7 @@ watch(() => parsedContent.value, () => {
       a.setAttribute('target', '_blank')
       a.style.setProperty('--ficon', 'url(https://favicon.2cn2.com/' + a.href.replace(/^https?:\/\//, '') + ')')
       for(let item of ['imgur.com']){
-        if(href.indexOf(item) > -1) {
+        if(href.indexOf(item) > -1 && href.indexOf('https://2cn2.com/') < 0) {
           a.setAttribute('href', 'https://2cn2.com/'+href)
         }
       }
