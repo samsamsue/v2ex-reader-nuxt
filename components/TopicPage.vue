@@ -739,6 +739,10 @@ body {
   border:none;
   margin:2rem 0;
   background: linear-gradient(to right, transparent, var(--input-bg), transparent);
+  background-image: repeating-linear-gradient(to right, rgba(180,180,180,0.2) 0 8px, transparent 8px 14px);
+  background-size: 100% 2px;
+  background-repeat: no-repeat;
+  background-position: bottom;
   
 }
 .quote-title__text-content a{
