@@ -66,7 +66,7 @@ function enhanceFloorLinks(root: HTMLElement, doc: Document) {
   textNodes.forEach((textNode) => {
     const text = textNode.nodeValue || ''
     const fragment = doc.createDocumentFragment()
-    const regex = /#(\d+)\b/g
+    const regex = /^#(\d+)\b/g
     let lastIndex = 0
     let matched = false
     let match: RegExpExecArray | null
