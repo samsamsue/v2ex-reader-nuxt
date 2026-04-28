@@ -178,10 +178,12 @@ watch(() => parsedContent.value, () => {
       let href = a.getAttribute('href')
       if(!/^(http|https):\/\//.test(href) && !/^#/.test(href)){
         a.setAttribute('href', site + (/^\//.test(href) ? '' : '/' ) + href)
-        
       }
       a.setAttribute('target', '_blank')
       a.style.setProperty('--ficon', 'url(https://favicon.2cn2.com/' + a.href.replace(/^https?:\/\//, '') + ')')
+      if(/^(http|https):\/\//.test(href)){
+        a.setAttribute('href', 'https://2cn2.com/'+href)
+      }
 
     })
 
