@@ -271,8 +271,12 @@ const openOriginal = () => {
   window.open(url, '_blank')
 }
 const goBack = () => {
-  if (document.referrer && document.referrer.includes(location.host)) history.back()
-  else navigateTo(props.backTo || '/all')
+  const state = window.history.state as { back?: string | null } | null
+  if (typeof state?.back === 'string' && state.back.startsWith('/')) {
+    history.back()
+    return
+  }
+  navigateTo(props.backTo || '/all')
 }
 
 const refreshCodeHighlighting = async () => {
