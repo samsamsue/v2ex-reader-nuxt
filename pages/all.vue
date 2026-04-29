@@ -165,6 +165,7 @@ type SiteKey = keyof typeof siteMap
 
 const activeSite = computed<SiteKey>(() => route.query.site === 'linuxdo' ? 'linuxdo' : 'v2ex')
 const siteConfig = computed(() => siteMap[activeSite.value])
+const LIST_SCROLL_KEY = 'reader_list_scroll_positions'
 
 const needLogin = ref(false)
 const items = ref<any[]>([])
@@ -186,6 +187,48 @@ let observer: IntersectionObserver | null = null
 let unreadTimer: ReturnType<typeof setInterval> | null = null
 let enableMoreTimer: ReturnType<typeof setTimeout> | null = null
 let pageShowHandler: ((event: PageTransitionEvent) => void) | null = null
+
+const readScrollPositions = () => {
+  if (!process.client) return {} as Record<string, number>
+  try {
+    return JSON.parse(sessionStorage.getItem(LIST_SCROLL_KEY) || '{}') as Record<string, number>
+  } catch {
+    return {}
+  }
+}
+
+const saveListScroll = (path = route.fullPath) => {
+  if (!process.client || !path) return
+  const positions = readScrollPositions()
+  positions[path] = window.scrollY || 0
+  sessionStorage.setItem(LIST_SCROLL_KEY, JSON.stringify(positions))
+}
+
+const restoreListScroll = async () => {
+  if (!process.client) return
+
+  const savedY = readScrollPositions()[route.fullPath]
+  if (typeof savedY !== 'number' || savedY <= 0) return
+
+  await nextTick()
+
+  let attempts = 0
+  const maxAttempts = 20
+
+  const tryRestore = () => {
+    window.scrollTo(0, savedY)
+
+    const maxScrollableY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+    const reachedTarget = Math.abs(window.scrollY - Math.min(savedY, maxScrollableY)) <= 2
+
+    if (reachedTarget || attempts >= maxAttempts) return
+
+    attempts += 1
+    window.requestAnimationFrame(tryRestore)
+  }
+
+  window.requestAnimationFrame(tryRestore)
+}
 
 watch(showNotif, (val) => {
   if (!process.client) return
@@ -348,10 +391,12 @@ const scrollTop = () => {
 }
 
 const saveLastViewed = (code: string) => {
+  saveListScroll()
   sessionStorage.setItem(siteConfig.value.lastCodeKey, code)
 }
 
 const goToTopic = async (id: string) => {
+  saveListScroll()
   showNotif.value = false
   await navigateTo(topicLink(id))
 }
@@ -393,6 +438,7 @@ watch(activeSite, async () => {
 
 onMounted(async () => {
   await syncSiteState()
+  await restoreListScroll()
 
   pageShowHandler = (event: PageTransitionEvent) => {
     if (event.persisted) checkHighlight()
@@ -416,7 +462,13 @@ onMounted(async () => {
 })
 
 onActivated(() => {
-  if (process.client) checkHighlight()
+  if (!process.client) return
+  void restoreListScroll()
+  checkHighlight()
+})
+
+onDeactivated(() => {
+  saveListScroll()
 })
 
 onBeforeUnmount(() => {
