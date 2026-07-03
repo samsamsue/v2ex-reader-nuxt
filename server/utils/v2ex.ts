@@ -397,6 +397,17 @@ function extractV2exReplyDiagnostics(html: string) {
   }
 }
 
+function buildV2exResponseDebug(resp: Response, html: string) {
+  return {
+    status: resp.status,
+    url: resp.url,
+    contentType: resp.headers.get('content-type') || '',
+    title: normalizeHtmlText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || '').slice(0, 160),
+    text: normalizeHtmlText(html).slice(0, 2000),
+    html: html.slice(0, 4000)
+  }
+}
+
 function extractV2exReplyAction(html: string, topicUrl: string) {
   const formMatch =
     html.match(/<form\b[^>]*\bmethod=["']post["'][^>]*>[\s\S]*?\bname=["']once["'][\s\S]*?<\/form>/i) ||
@@ -427,6 +438,8 @@ function extractV2exReplyFields(html: string) {
 
   return fields
 }
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export async function createTopicReply(topicId: number, raw: string, env: V2Env, replyToAuthor?: string) {
   const content = raw.trim()
@@ -487,6 +500,23 @@ export async function createTopicReply(topicId: number, raw: string, env: V2Env,
     return { status: resp.status, url: resp.url, confirmed: true }
   }
 
+  await wait(700)
+  const verifyResp = await safeFetch(`${topicUrl}?_t=${Date.now()}`, env, {
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      Referer: topicUrl
+    }
+  })
+  const verifyHtml = await verifyResp.text()
+  if (confirmV2exReplyResult(verifyHtml, previousReplyCount, replyContent)) {
+    return {
+      status: resp.status,
+      url: resp.url,
+      confirmed: true,
+      verifiedAfterPost: true
+    }
+  }
+
   const resultError = describeV2exReplyResult(resultHtml)
   if (resultError) {
     throw new V2exReplyError(resultError, {
@@ -496,6 +526,11 @@ export async function createTopicReply(topicId: number, raw: string, env: V2Env,
       replyFields: Object.keys(replyFields),
       previousReplyCount,
       returnedReplyCount: extractReplyContents(resultHtml).length,
+      postResponse: buildV2exResponseDebug(resp, resultHtml),
+      verifyStatus: verifyResp.status,
+      verifyUrl: verifyResp.url,
+      verifyReplyCount: extractReplyContents(verifyHtml).length,
+      verifyTitle: normalizeHtmlText(verifyHtml.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || '').slice(0, 120),
       ...extractV2exReplyDiagnostics(resultHtml)
     })
   }
