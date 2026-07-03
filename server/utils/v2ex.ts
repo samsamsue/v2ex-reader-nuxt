@@ -60,6 +60,16 @@ export const decodeShare = (code: string) => {
 
 type V2Env = typeof ENV
 
+export class V2exReplyError extends Error {
+  details?: Record<string, unknown>
+
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message)
+    this.name = 'V2exReplyError'
+    this.details = details
+  }
+}
+
 function normalizeHtmlText(value: string) {
   return (value || '')
     .replace(/<br\s*\/?>/gi, '\n')
@@ -70,8 +80,18 @@ function normalizeHtmlText(value: string) {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/@\s+/g, '@')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function decodeHtmlAttr(value: string) {
+  return (value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
 }
 
 export async function safeFetch(url: string, env: V2Env, init?: RequestInit) {
@@ -327,6 +347,29 @@ function describeV2exReplyPage(html: string) {
   return 'V2EX_ONCE_NOT_FOUND'
 }
 
+function extractReplyContents(html: string) {
+  const replies: string[] = []
+  const replyRegex = /<div\b[^>]*class=["'][^"']*\breply_content\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi
+  let match: RegExpExecArray | null
+  while ((match = replyRegex.exec(html || '')) !== null) {
+    replies.push(normalizeHtmlText(match[1]))
+  }
+  return replies
+}
+
+function confirmV2exReplyResult(html: string, previousReplyCount: number, submittedContent: string) {
+  const replies = extractReplyContents(html)
+  if (replies.length > previousReplyCount) return true
+
+  const normalizedSubmitted = normalizeHtmlText(submittedContent)
+  if (!normalizedSubmitted) return false
+
+  const submittedPrefix = normalizedSubmitted.slice(0, 80)
+  return replies
+    .slice(Math.max(0, previousReplyCount - 2))
+    .some((reply) => reply.includes(submittedPrefix))
+}
+
 function describeV2exReplyResult(html: string) {
   const plain = normalizeHtmlText(html)
   if (/每日登录奖励|请登录|登录后方可|\/signin|sign in/i.test(html)) return 'V2EX_COOKIE_EXPIRED'
@@ -336,6 +379,22 @@ function describeV2exReplyResult(html: string) {
   if (/频率|太快|稍后|rate limit|too fast|spam/i.test(plain)) return 'V2EX_REPLY_RATE_LIMITED'
   if (/感谢你的回复|回复成功|感谢回复/i.test(plain)) return ''
   return 'V2EX_REPLY_NOT_CONFIRMED'
+}
+
+function extractV2exReplyDiagnostics(html: string) {
+  const plain = normalizeHtmlText(html)
+  const problem =
+    plain.match(/(你[^\s。！？]{0,40}(?:不能|无法|需要|请|太快|频率)[^\s。！？]{0,80})/)?.[1] ||
+    plain.match(/((?:不能|无法|需要|请|太快|频率|错误|失败)[^\s。！？]{0,100})/)?.[1] ||
+    ''
+  const hasProblem = /problem|error|warning|message|sl/i.test(html)
+  const hasReplyForm = /name=["']content["'][\s\S]*name=["']once["']|name=["']once["'][\s\S]*name=["']content["']/i.test(html)
+  return {
+    title: normalizeHtmlText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || '').slice(0, 120),
+    problem: problem.slice(0, 160),
+    hasProblem,
+    hasReplyForm
+  }
 }
 
 function extractV2exReplyAction(html: string, topicUrl: string) {
@@ -348,6 +407,27 @@ function extractV2exReplyAction(html: string, topicUrl: string) {
   return `https://www.v2ex.com${action.startsWith('/') ? action : `/${action}`}`
 }
 
+function extractV2exReplyFields(html: string) {
+  const formMatch =
+    html.match(/<form\b[^>]*\bmethod=["']post["'][^>]*>[\s\S]*?\bname=["']once["'][\s\S]*?<\/form>/i) ||
+    html.match(/<form\b[^>]*>[\s\S]*?\bname=["']once["'][\s\S]*?<\/form>/i)
+  const form = formMatch?.[0] || ''
+  const fields: Record<string, string> = {}
+  const inputRegex = /<input\b[^>]*\bname=["']([^"']+)["'][^>]*>/gi
+  let match: RegExpExecArray | null
+
+  while ((match = inputRegex.exec(form)) !== null) {
+    const input = match[0]
+    const name = match[1]
+    const value =
+      input.match(/\bvalue=["']([^"']*)["']/i)?.[1] ||
+      ''
+    fields[name] = decodeHtmlAttr(value)
+  }
+
+  return fields
+}
+
 export async function createTopicReply(topicId: number, raw: string, env: V2Env, replyToAuthor?: string) {
   const content = raw.trim()
   if (!content) throw new Error('REPLY_EMPTY')
@@ -358,6 +438,8 @@ export async function createTopicReply(topicId: number, raw: string, env: V2Env,
   const once = extractV2exOnce(pageHtml)
   if (!once) throw new Error(describeV2exReplyPage(pageHtml))
   const replyUrl = extractV2exReplyAction(pageHtml, topicUrl)
+  const replyFields = extractV2exReplyFields(pageHtml)
+  const previousReplyCount = extractReplyContents(pageHtml).length
 
   const replyContent =
     replyToAuthor && !new RegExp(`^\\s*@${replyToAuthor}\\b`).test(content)
@@ -365,6 +447,9 @@ export async function createTopicReply(topicId: number, raw: string, env: V2Env,
       : content
 
   const body = new URLSearchParams()
+  Object.entries(replyFields).forEach(([key, value]) => {
+    if (key !== 'content') body.set(key, value)
+  })
   body.set('content', replyContent)
   body.set('once', once)
 
@@ -394,8 +479,22 @@ export async function createTopicReply(topicId: number, raw: string, env: V2Env,
   }
 
   const resultHtml = await resp.text()
+  if (confirmV2exReplyResult(resultHtml, previousReplyCount, replyContent)) {
+    return { status: resp.status, url: resp.url, confirmed: true }
+  }
+
   const resultError = describeV2exReplyResult(resultHtml)
-  if (resultError) throw new Error(resultError)
+  if (resultError) {
+    throw new V2exReplyError(resultError, {
+      status: resp.status,
+      url: resp.url,
+      replyUrl,
+      replyFields: Object.keys(replyFields),
+      previousReplyCount,
+      returnedReplyCount: extractReplyContents(resultHtml).length,
+      ...extractV2exReplyDiagnostics(resultHtml)
+    })
+  }
 
   return { status: resp.status, url: resp.url, confirmed: true }
 }

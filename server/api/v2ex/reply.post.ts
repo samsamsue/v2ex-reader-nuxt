@@ -1,5 +1,5 @@
 import { defineEventHandler, getCookie, readBody, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, createTopicReply } from '../../utils/v2ex'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, V2exReplyError, createTopicReply } from '../../utils/v2ex'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)
@@ -40,6 +40,10 @@ export default defineEventHandler(async (event) => {
           ? 502
           : 502
     setResponseStatus(event, statusCode)
-    return { error: 'UPSTREAM_ERROR', message }
+    return {
+      error: 'UPSTREAM_ERROR',
+      message,
+      details: error instanceof V2exReplyError ? error.details : undefined
+    }
   }
 })
