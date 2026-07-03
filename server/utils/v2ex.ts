@@ -24,8 +24,12 @@ loadEnvFile()
 export const SALT = 987654
 export const SHARE_SALT = 1234567
 export const ENV = {
-  V2_COOKIE: process.env.V2_COOKIE || ''
+  V2_COOKIE: process.env.V2_COOKIE || '',
+  V2_USER_AGENT: process.env.V2_USER_AGENT || ''
 }
+
+const DEFAULT_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36'
 
 const PROXY_URL = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || ''
 const PROXY_AGENT = PROXY_URL ? new ProxyAgent(PROXY_URL) : null
@@ -108,12 +112,10 @@ export async function safeFetch(url: string, env: V2Env, init?: RequestInit) {
     ...init,
     dispatcher: PROXY_AGENT || undefined,
     headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+      'User-Agent': env.V2_USER_AGENT || DEFAULT_USER_AGENT,
       Accept:
         'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-      Referer: 'https://www.v2ex.com/',
       Cookie: safeCookie || '',
       'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
       Pragma: 'no-cache',
@@ -470,7 +472,7 @@ export async function createTopicReply(topicId: number, raw: string, env: V2Env,
       Accept: '*/*',
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       Origin: 'https://www.v2ex.com',
-      Referer: topicUrl,
+      Priority: 'u=1, i',
       'X-Requested-With': 'XMLHttpRequest',
       'Sec-CH-UA': '"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
       'Sec-CH-UA-Mobile': '?0',
