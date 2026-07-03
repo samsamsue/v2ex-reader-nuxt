@@ -1,3 +1,7 @@
+<template>
+  <AllPage />
+</template>
+
 <script setup lang="ts">
-await navigateTo('/all', { redirectCode: 301 })
+import AllPage from '../../components/AllPage.vue'
 </script>

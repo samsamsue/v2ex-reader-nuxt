@@ -48,11 +48,76 @@
 
         <NuxtLink v-if="showShareLink && shareUrl && (!loadingTopic ||loaded)" :to="shareUrl" class="end-link">—— END ——</NuxtLink>
 
-        <div v-if="repliesReady && total > 0" class="comments">
-          <div class="comments-title">讨论 (<span id="count">{{ total }}</span>)</div>
+        <form v-if="canReply && replyComposerVisible" class="reply-compose" @submit.prevent="submitReply">
+          <div v-if="replyTarget" class="reply-compose-target">
+            <div class="reply-compose-target-main">
+              <div class="reply-compose-target-title">
+                Reply to #{{ replyTarget.id }} {{ replyTarget.author ? `@${replyTarget.author}` : '' }}
+              </div>
+              <div v-if="replyTargetPreview" class="reply-compose-target-preview">{{ replyTargetPreview }}</div>
+            </div>
+            <button type="button" @click="clearReplyTarget">Cancel</button>
+          </div>
+          <div v-else class="reply-compose-target">
+            Reply
+            <button type="button" @click="closeReplyComposer">Close</button>
+          </div>
+          <textarea
+            ref="replyTextareaRef"
+            v-model="replyText"
+            :disabled="replySubmitting"
+            rows="4"
+            placeholder="Write a reply..."
+            @paste="handleReplyPaste"
+          ></textarea>
+          <div class="reply-tools">
+            <button type="button" @click="toggleBase64Tool">Base64</button>
+            <button type="button" :disabled="imageUploading" @click="openImagePicker">
+              {{ imageUploading ? 'Uploading...' : 'Upload image' }}
+            </button>
+            <input
+              ref="imageFileInputRef"
+              class="reply-image-input"
+              type="file"
+              accept="image/*"
+              multiple
+              @change="uploadSelectedImages"
+            />
+            <div v-if="base64ToolVisible" class="base64-tool">
+              <input
+                v-model="base64Source"
+                type="text"
+                placeholder="Text to Base64"
+                @keydown.enter.prevent="insertBase64Text"
+              />
+              <button type="button" :disabled="!base64Source" @click="insertBase64Text">OK</button>
+            </div>
+            <span v-if="imageUploadError" class="reply-tool-error">{{ imageUploadError }}</span>
+            <span v-else-if="imageUploadStatus" class="reply-tool-status">{{ imageUploadStatus }}</span>
+          </div>
+          <div class="reply-compose-actions">
+            <span v-if="replyError" class="reply-compose-error">{{ replyError }}</span>
+            <span v-else-if="replySuccess" class="reply-compose-success">{{ replySuccess }}</span>
+            <button type="submit" :disabled="replySubmitting || !replyText.trim()">
+              {{ replySubmitting ? 'Sending...' : 'Reply' }}
+            </button>
+          </div>
+        </form>
+
+        <div v-if="repliesReady && (total > 0 || canReply)" class="comments">
+          <div class="comments-head">
+            <div class="comments-title">讨论 (<span id="count">{{ total }}</span>)</div>
+            <button v-if="canReply" type="button" class="comments-reply-btn" @click="openReplyComposer()">Reply</button>
+          </div>
           <div v-if="replyNotice" class="reply-notice">{{ replyNotice }}</div>
           <div id="comments">
-            <CommentTree :nodes="replies" :opAuthor="opAuthor" />
+            <CommentTree
+              :nodes="replies"
+              :opAuthor="opAuthor"
+              :reply-enabled="canReply"
+              :external-floor-url="externalFloorUrl"
+              @reply="startReply"
+            />
           </div>
         </div>
         </div>
@@ -86,21 +151,25 @@ const props = withDefaults(defineProps<{
   shareBasePath?: string
   shareCodePrefix?: string
   openOriginalTemplate?: string
+  externalFloorTemplate?: string
+  replyApi?: string
   loginTitle?: string
 }>(), {
   requireAuth: false,
-  fromPath: '/all',
+  fromPath: '/v2ex',
   showQr: false,
   shareSalt: undefined,
   showShareLink: false,
   showBack: false,
-  backTo: '/all',
+  backTo: '/v2ex',
   showOpenOriginal: false,
   pageTitle: 'linux.do Reader',
   compactTitle: false,
   shareBasePath: '/s',
   shareCodePrefix: '',
   openOriginalTemplate: 'https://linux.do/t/topic/{id}',
+  externalFloorTemplate: '',
+  replyApi: '',
   loginTitle: 'linux.do Reader'
 })
 
@@ -119,6 +188,19 @@ const replies = ref<any[]>([])
 const total = ref(0)
 const allIds = ref<number[]>([])
 const replyNotice = ref('')
+const replyText = ref('')
+const replyTarget = ref<any | null>(null)
+const replyComposerVisible = ref(false)
+const replySubmitting = ref(false)
+const replyError = ref('')
+const replySuccess = ref('')
+const replyTextareaRef = ref<HTMLTextAreaElement | null>(null)
+const imageFileInputRef = ref<HTMLInputElement | null>(null)
+const base64ToolVisible = ref(false)
+const base64Source = ref('')
+const imageUploading = ref(false)
+const imageUploadError = ref('')
+const imageUploadStatus = ref('')
 const notifyVisible = ref(false)
 const historyFloor = ref<string | null>(null)
 const showHistoryPrompt = ref(false)
@@ -130,7 +212,7 @@ const mainRef = ref(null)
 const parsedContent = computed(() => {
   //替换图片链接
   const content = topicContent.value
-    .replace(/<img(.*?)src="(http|https):\/\/(.*?)"/g, '<img$1src="https://2cn2.com/$3"')
+    .replace(/<img(.*?)src="(http|https):\/\/(.*?)"/g, '<img$1src="https://g.6li6.com/$3"')
     .replace(/<img(.*?)srcset=".*?"/g, '<img$1')
     .replace('[!quote]+','<div class="blockquote-bar"><span>Blockquote</span> <span class="quote-btn" ><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up-icon lucide-chevron-up"><path d="m18 15-6-6-6 6"/></svg></span></div>')
   return content
@@ -180,10 +262,10 @@ watch(() => parsedContent.value, () => {
         a.setAttribute('href', site + (/^\//.test(href) ? '' : '/' ) + href)
       }
       a.setAttribute('target', '_blank')
-      a.style.setProperty('--ficon', 'url(https://favicon.2cn2.com/' + a.href.replace(/^https?:\/\//, '') + ')')
+      a.style.setProperty('--ficon', 'url(https://favicon.6li6.com/' + a.href.replace(/^https?:\/\//, '') + ')')
       for(let item of ['imgur.com']){
-        if(href.indexOf(item) > -1 && href.indexOf('https://2cn2.com/') < 0) {
-          a.setAttribute('href', 'https://2cn2.com/'+href)
+        if(href.indexOf(item) > -1 && href.indexOf('https://g.6li6.com/') < 0) {
+          a.setAttribute('href', 'https://g.6li6.com/'+href)
         }
       }
 
@@ -212,6 +294,7 @@ function handleClick(event:any){
 let qrcodeInited = false
 let lastScrollY = 0
 let favInterval: any = null
+let faviconLink: HTMLLinkElement | null = null
 let normalFav = ''
 let alertFav = ''
 const SCROLL_KEY = 'linuxdo_floor_pos'
@@ -234,6 +317,28 @@ const shareUrl = computed(() => {
 })
 const topicReady = computed(() => !!topicContent.value || !loadingTopic.value)
 const repliesReady = computed(() => replies.value.length > 0 || total.value > 0 || !loadingReplies.value)
+const canReply = computed(() => Boolean(props.replyApi))
+const replyTargetPreview = computed(() => {
+  if (!replyTarget.value?.replyHtml) return ''
+  const plain = String(replyTarget.value.replyHtml)
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+  return plain.length > 120 ? `${plain.slice(0, 120)}...` : plain
+})
+const externalFloorUrl = computed(() => {
+  if (!props.externalFloorTemplate) return ''
+  return props.externalFloorTemplate
+    .replace('{id}', String(rawId.value))
+    .replace('{floor}', '{floor}')
+})
 
 // --- 方法：楼层记忆功能 ---
 const saveFloor = (id: string, floorId: string) => {
@@ -276,7 +381,7 @@ const goBack = () => {
     history.back()
     return
   }
-  navigateTo(props.backTo || '/all')
+  navigateTo(props.backTo || '/v2ex')
 }
 
 const refreshCodeHighlighting = async () => {
@@ -322,6 +427,180 @@ const jumpToFloor = (event: Event | null, floor: number | string) => {
   el.classList.remove('flash-highlight')
   void el.offsetWidth
   el.classList.add('flash-highlight')
+}
+
+const focusReplyComposer = () => {
+  nextTick(() => {
+    replyTextareaRef.value?.focus()
+  })
+}
+
+const openReplyComposer = (node: any = null) => {
+  if (!canReply.value) return
+  replyTarget.value = node
+  replyComposerVisible.value = true
+  replyError.value = ''
+  replySuccess.value = ''
+  focusReplyComposer()
+}
+
+const startReply = (node: any) => {
+  openReplyComposer(node)
+}
+
+const closeReplyComposer = () => {
+  replyComposerVisible.value = false
+  replyTarget.value = null
+  base64ToolVisible.value = false
+  imageUploadError.value = ''
+  imageUploadStatus.value = ''
+}
+
+const clearReplyTarget = () => {
+  replyTarget.value = null
+}
+
+const encodeBase64 = (value: string) => {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
+  return btoa(binary)
+}
+
+const insertReplyText = (value: string) => {
+  const textarea = replyTextareaRef.value
+  if (!textarea) {
+    replyText.value = replyText.value ? `${replyText.value}\n${value}` : value
+    return
+  }
+
+  const start = textarea.selectionStart ?? replyText.value.length
+  const end = textarea.selectionEnd ?? start
+  replyText.value = `${replyText.value.slice(0, start)}${value}${replyText.value.slice(end)}`
+  nextTick(() => {
+    textarea.focus()
+    const cursor = start + value.length
+    textarea.setSelectionRange(cursor, cursor)
+  })
+}
+
+const toggleBase64Tool = () => {
+  base64ToolVisible.value = !base64ToolVisible.value
+  if (base64ToolVisible.value) {
+    nextTick(() => {
+      document.querySelector<HTMLInputElement>('.base64-tool input')?.focus()
+    })
+  }
+}
+
+const insertBase64Text = () => {
+  if (!base64Source.value) return
+  const encoded = encodeBase64(base64Source.value)
+  insertReplyText(encoded)
+  base64Source.value = ''
+  base64ToolVisible.value = false
+  nextTick(() => {
+    replyTextareaRef.value?.focus()
+  })
+}
+
+const openImagePicker = () => {
+  imageFileInputRef.value?.click()
+}
+
+const uploadImageFile = async (file: File) => {
+  const formData = new FormData()
+  formData.set('image', file)
+  const res: any = await $fetch('/api/imgbb/upload', {
+    method: 'POST',
+    body: formData
+  })
+  if (!res?.link) {
+    throw new Error(res?.message || res?.error || 'Upload failed')
+  }
+  return res.link as string
+}
+
+const uploadReplyImages = async (files: File[]) => {
+  const images = files.filter((file) => file.type.startsWith('image/'))
+  if (!images.length || imageUploading.value) return
+
+  imageUploading.value = true
+  imageUploadError.value = ''
+  imageUploadStatus.value = ''
+  try {
+    const links: string[] = []
+    for (const file of images) {
+      imageUploadStatus.value = `Uploading ${file.name || 'image'}...`
+      const link = await uploadImageFile(file)
+      links.push(link)
+    }
+    insertReplyText(links.join('\n'))
+    imageUploadStatus.value = images.length > 1 ? `${images.length} images inserted` : 'Image inserted'
+  } catch (error: any) {
+    imageUploadError.value = error.data?.message || error.data?.error || error.message || 'Upload failed'
+  } finally {
+    imageUploading.value = false
+  }
+}
+
+const uploadSelectedImages = async (event: Event) => {
+  const input = event.target as HTMLInputElement | null
+  const files = Array.from(input?.files || [])
+  if (input) input.value = ''
+  await uploadReplyImages(files)
+}
+
+const handleReplyPaste = async (event: ClipboardEvent) => {
+  const items = Array.from(event.clipboardData?.items || [])
+  const files = items
+    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file))
+
+  if (!files.length) return
+  event.preventDefault()
+  await uploadReplyImages(files)
+}
+
+const submitReply = async () => {
+  if (!canReply.value || replySubmitting.value) return
+  const raw = replyText.value.trim()
+  if (!raw) return
+
+  replySubmitting.value = true
+  replyError.value = ''
+  replySuccess.value = ''
+  try {
+    const res: any = await $fetch(props.replyApi, {
+      method: 'POST',
+      body: {
+        topicId: rawId.value,
+        raw,
+        replyToPostNumber: replyTarget.value?.id || null,
+        replyToAuthor: replyTarget.value?.author || ''
+      }
+    })
+    if (res?.error) {
+      replyError.value = res.message || res.error
+      return
+    }
+    replyText.value = ''
+    replyTarget.value = null
+    replyComposerVisible.value = false
+    replySuccess.value = 'Sent'
+    await refreshReplies()
+  } catch (error: any) {
+    if (props.requireAuth && (error.response?.status === 401 || error.data?.error === 'AUTH')) {
+      needLogin.value = true
+    } else {
+      replyError.value = error.data?.message || error.data?.error || error.message || 'Reply failed'
+    }
+  } finally {
+    replySubmitting.value = false
+  }
 }
 
 const handleContentClick = async (event: Event) => {
@@ -376,6 +655,7 @@ const listenKeydown = (event: KeyboardEvent) => {
 
 // --- 方法：Favicon 闪烁 ---
 const drawFavicons = () => {
+  if (normalFav && alertFav) return
   const c = document.createElement('canvas')
   c.width = 32; c.height = 32; const x = c.getContext('2d')!
   x.fillStyle = '#1d2129'; x.fillRect(0, 0, 32, 32)
@@ -384,26 +664,52 @@ const drawFavicons = () => {
   x.beginPath(); x.arc(25, 7, 7, 0, Math.PI * 2); x.fillStyle = '#ff2c55'; x.fill()
   x.strokeStyle = '#fff'; x.lineWidth = 2; x.stroke()
   alertFav = c.toDataURL()
-  
-  let link: HTMLLinkElement = document.querySelector("link[rel*='icon']") || document.createElement('link')
-  link.type = 'image/x-icon'; link.rel = 'shortcut icon'; link.href = normalFav
-  document.getElementsByTagName('head')[0].appendChild(link)
+}
+
+const getFaviconLink = () => {
+  if (faviconLink && document.head.contains(faviconLink)) return faviconLink
+
+  faviconLink = document.querySelector<HTMLLinkElement>("link[rel*='icon']")
+  if (faviconLink) return faviconLink
+
+  faviconLink = document.createElement('link')
+  faviconLink.type = 'image/x-icon'
+  faviconLink.rel = 'shortcut icon'
+  document.head.appendChild(faviconLink)
+  return faviconLink
+}
+
+const ensureDefaultFavicon = () => {
+  drawFavicons()
+  const link = getFaviconLink()
+  if (link.href !== normalFav) link.href = normalFav
+}
+
+const setFavicon = (href: string) => {
+  const link = getFaviconLink()
+  link.href = href
+}
+
+const restoreFavicon = () => {
+  if (!faviconLink) return
+  drawFavicons()
+  if (document.head.contains(faviconLink) && faviconLink.href !== normalFav) faviconLink.href = normalFav
 }
 
 const startBlink = () => {
+  if (document.visibilityState === 'visible') return
   if (favInterval) return
+  drawFavicons()
   let s = 0
   favInterval = setInterval(() => {
-    const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']")
-    if (link) link.href = (s % 2 === 0) ? alertFav : normalFav
+    setFavicon((s % 2 === 0) ? alertFav : normalFav)
     s++
   }, 800)
 }
 
 const stopBlink = () => {
   if (favInterval) { clearInterval(favInterval); favInterval = null }
-  const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']")
-  if (link) link.href = normalFav
+  restoreFavicon()
 }
 
 // --- 方法：代码模式 (取代全局双击事件) ---
@@ -559,6 +865,7 @@ const listenScroll = () => {
 
 const listenVisible = () => {
   if (document.visibilityState === 'visible') stopBlink()
+  else if (notifyVisible.value) startBlink()
 }
 
 const listPageShow = (e) => {
@@ -567,7 +874,8 @@ const listPageShow = (e) => {
 
 // 轮询新回复
 const poll = async () => {
-    if (isModeCode.value || document.visibilityState === 'hidden') {
+    if (isModeCode.value) {
+      clearTimeout(pollTimer)
       pollTimer = setTimeout(poll, 10000)
       return
     }
@@ -575,14 +883,29 @@ const poll = async () => {
       const res: any = await $fetch(`${props.repliesApiBase}/${rawId.value}`, { query: { _t: Date.now() } })
       if (res?.total > total.value) {
         notifyVisible.value = true
-        startBlink()
+        if (document.visibilityState === 'hidden') startBlink()
+        else stopBlink()
       }
     } catch {}
+    clearTimeout(pollTimer)
     pollTimer = setTimeout(poll, 50000 + Math.random() * 20000)
 } 
 
+const cleanup = () => {
+  clearTimeout(pollTimer)
+  clearTimeout(scrollTimer)
+  pollTimer = null
+  scrollTimer = null
+  delete (window as any).jumpToFloor
+  window.removeEventListener('visibilitychange', listenVisible )
+  window.removeEventListener('scroll', listenScroll)
+  window.removeEventListener('pageshow', listPageShow )
+  window.removeEventListener('keydown', listenKeydown)
+  stopBlink()
+}
 
 const init = ()=> {
+  cleanup()
 	;(window as any).jumpToFloor = jumpToFloor
 	window.addEventListener('visibilitychange', listenVisible )
 	window.addEventListener('scroll', listenScroll)
@@ -591,8 +914,9 @@ const init = ()=> {
 	checkHistory()
 	fetchTopic()
 	fetchReplies()
+  clearTimeout(pollTimer)
 	pollTimer = setTimeout(poll, 60000)
-	drawFavicons()
+  ensureDefaultFavicon()
 }
 
 const isFirstActivated = ref(true);
@@ -613,21 +937,13 @@ onActivated(() => {
 });
 
 onDeactivated(() => {
-  clearTimeout(pollTimer)
-  clearTimeout(scrollTimer)
-  delete (window as any).jumpToFloor
-  window.removeEventListener('visibilitychange', listenVisible )
-  window.removeEventListener('scroll', listenScroll)
-  window.removeEventListener('pageshow', listPageShow )
-  window.removeEventListener('keydown', listenKeydown)
-  stopBlink()
+  cleanup()
   console.log('TopicPage deactivated')
 })
 
 onUnmounted(() => {
   if (typeof window !== 'undefined') {
-    delete (window as any).jumpToFloor
-    window.removeEventListener('keydown', listenKeydown)
+    cleanup()
   }
 })
 
@@ -925,10 +1241,19 @@ body {
   color: var(--text);
   background: rgba(127, 127, 127, 0.08);
 }
+.content :where(video, iframe, embed, object),
 .embedded_video {
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    margin:1rem 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.embedded_video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin:1rem 0;
+}
+.embedded_video :where(video, iframe, embed, object) {
+  width: 100%;
+  height: 100%;
 }
 .code-preview-pre {
   margin: 0;
@@ -1239,9 +1564,8 @@ body {
 }
 
 .comments-title {
-  margin-top: 2rem;
   font-weight: bold;
-  margin-bottom: 10px;
+  margin: 0;
   font-size: 1.1rem;
   border-bottom: 1.5px solid var(--text);
   display: inline-block;
@@ -1257,6 +1581,216 @@ body {
   color: var(--meta);
   font-size: 0.84rem;
   line-height: 1.5;
+}
+
+.reply-compose {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: min(650px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
+  z-index: 300;
+}
+
+.reply-compose-target {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--meta);
+  font-size: 0.82rem;
+}
+
+.reply-compose-target-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.reply-compose-target-title {
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.reply-compose-target-preview {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--meta);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reply-compose-target button,
+.reply-compose-actions button {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: #1d2129;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.reply-compose-target button {
+  background: transparent;
+  color: var(--meta);
+}
+
+.reply-compose textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+  max-height: 34vh;
+}
+
+.reply-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reply-tools button,
+.base64-tool button {
+  border: none;
+  border-radius: 6px;
+  padding: 5px 9px;
+  background: rgba(127, 127, 127, 0.12);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.reply-tools button:hover,
+.base64-tool button:hover {
+  background: rgba(127, 127, 127, 0.2);
+}
+
+.reply-tools button:disabled,
+.base64-tool button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.reply-image-input {
+  display: none;
+}
+
+.base64-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.base64-tool input {
+  min-width: 120px;
+  max-width: 260px;
+  flex: 1;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.reply-tool-error,
+.reply-tool-status {
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.reply-tool-error {
+  color: #d11a2a;
+}
+
+.reply-tool-status {
+  color: var(--meta);
+}
+
+.reply-compose-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.reply-compose-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.reply-compose-error {
+  margin-right: auto;
+  color: #d11a2a;
+  font-size: 0.82rem;
+}
+
+.reply-compose-success {
+  margin-right: auto;
+  color: #16833a;
+  font-size: 0.82rem;
+}
+
+.comments-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2rem;
+  margin-bottom: 10px;
+}
+
+.comments-reply-btn {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: transparent;
+  color: var(--meta);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  line-height: 1.2;
+}
+
+.comments-reply-btn:hover {
+  color: var(--text);
+  background: rgba(127, 127, 127, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  .reply-compose-target button,
+  .reply-compose-actions button {
+    background: #fff;
+    color: #000;
+  }
 }
 
 .footnotes-sep{

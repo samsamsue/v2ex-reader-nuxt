@@ -1,3 +1,3 @@
 <script setup lang="ts">
-await navigateTo('/all', { redirectCode: 301 })
+await navigateTo('/v2ex', { redirectCode: 301 })
 </script>

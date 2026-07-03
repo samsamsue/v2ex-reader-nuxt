@@ -25,7 +25,23 @@
           </svg>
           {{ node.likes }}
         </span>
-        <span style="margin-left: 6px; opacity: 0.4;">#{{ node.id }}</span>
+        <button
+          v-if="replyEnabled"
+          type="button"
+          class="reply-action-btn"
+          @click="$emit('reply', node)"
+        >
+          Reply
+        </button>
+        <button
+          v-if="externalFloorUrl"
+          type="button"
+          class="comment-floor-link"
+          @click="openExternalFloor(node.id)"
+        >
+          #{{ node.id }}
+        </button>
+        <span v-else style="margin-left: 6px; opacity: 0.4;">#{{ node.id }}</span>
       </div>
       <div ref="replyTxtRef" class="reply-txt" v-html="parsedContent(node.replyHtml)"></div>
       <CommentTree
@@ -33,6 +49,9 @@
         :nodes="node.children"
         :opAuthor="opAuthor"
         :level="level + 1"
+        :reply-enabled="replyEnabled"
+        :external-floor-url="externalFloorUrl"
+        @reply="$emit('reply', $event)"
       />
     </div>
   </div>
@@ -42,7 +61,14 @@
 import { ref, computed, nextTick, watch } from 'vue'
 defineOptions({ name: 'CommentTree' })
 
-const props = defineProps<{ nodes: any[]; opAuthor: string | null; level?: number }>()
+const props = defineProps<{
+  nodes: any[]
+  opAuthor: string | null
+  level?: number
+  replyEnabled?: boolean
+  externalFloorUrl?: string
+}>()
+defineEmits<{ reply: [node: any] }>()
 const level = computed(() => props.level || 0)
 
 const nodeStyle = () => {
@@ -59,10 +85,15 @@ const jumpToFloor = (floor: number) => {
   }
 }
 
+const openExternalFloor = (floor: number | string) => {
+  if (typeof window === 'undefined' || !props.externalFloorUrl) return
+  window.open(props.externalFloorUrl.replace('{floor}', String(floor)), '_blank')
+}
+
 const parsedContent = computed(() => {
   return (content: string)=>{
     return content
-      .replace(/<img(.*?)src="(http|https):\/\/(.*?)"/g, '<img$1src="https://2cn2.com/$3"')
+      .replace(/<img(.*?)src="(http|https):\/\/(.*?)"/g, '<img$1src="https://g.6li6.com/$3"')
       .replace(/<img(.*?)srcset=".*?"/g, '<img$1')
   }
 })
@@ -79,10 +110,10 @@ watch( ()=> props.nodes, () => {
           a.setAttribute('href', site + (/^\//.test(href) ? '' : '/' ) + href)
         }
         a.setAttribute('target', '_blank')  
-        a.style.setProperty('--ficon', 'url(https://favicon.2cn2.com/' + a.href.replace(/^https?:\/\//, '') + ')')
+        a.style.setProperty('--ficon', 'url(https://favicon.6li6.com/' + a.href.replace(/^https?:\/\//, '') + ')')
         for(let item of ['imgur.com']){
-          if(href.indexOf(item) > -1 && href.indexOf('https://2cn2.com/') < 0) {
-            a.setAttribute('href', 'https://2cn2.com/'+href)
+          if(href.indexOf(item) > -1 && href.indexOf('https://g.6li6.com/') < 0) {
+            a.setAttribute('href', 'https://g.6li6.com/'+href)
           }
         }
         
@@ -101,7 +132,9 @@ watch( ()=> props.nodes, () => {
 </script>
 
 <style scoped>
-.reply-floor-btn {
+.reply-floor-btn,
+.reply-action-btn,
+.comment-floor-link {
   margin-left: 6px;
   border: none;
   background: transparent;
@@ -111,8 +144,19 @@ watch( ()=> props.nodes, () => {
   font: inherit;
 }
 
-.reply-floor-btn:hover {
+.reply-floor-btn:hover,
+.reply-action-btn:hover,
+.comment-floor-link:hover {
   color: var(--text);
+}
+
+.reply-action-btn {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.comment-bar:hover .reply-action-btn {
+  opacity: 1;
 }
 
 </style>

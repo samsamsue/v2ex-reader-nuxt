@@ -1,5 +1,5 @@
 import { defineEventHandler, getCookie, getRouterParam, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, createUpstreamErrorPayload, fetchTopicById } from '../../utils/linuxdo'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, createRequestEnv, createUpstreamErrorPayload, fetchTopicById } from '../../utils/linuxdo'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const topic = await fetchTopicById(parseInt(id, 10), ENV)
+    const topic = await fetchTopicById(parseInt(id, 10), createRequestEnv(event))
     if (!topic?.id) {
       setResponseStatus(event, 404)
       return { error: 'NOT_FOUND' }

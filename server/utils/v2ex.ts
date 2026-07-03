@@ -58,7 +58,7 @@ export const decodeShare = (code: string) => {
   }
 }
 
-export async function safeFetch(url: string, env: { V2_COOKIE: string }) {
+export async function safeFetch(url: string, env: { V2_COOKIE: string }, init?: RequestInit) {
   let safeCookie = env.V2_COOKIE || ''
   if (safeCookie) {
     safeCookie = safeCookie.replace(/^Cookie:\s*/i, '').trim()
@@ -69,6 +69,7 @@ export async function safeFetch(url: string, env: { V2_COOKIE: string }) {
     }
   }
   const resp = await fetch(url, {
+    ...init,
     dispatcher: PROXY_AGENT || undefined,
     headers: {
       'User-Agent':
@@ -79,7 +80,8 @@ export async function safeFetch(url: string, env: { V2_COOKIE: string }) {
       Referer: 'https://www.v2ex.com/',
       Cookie: safeCookie || '',
       'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
-      Pragma: 'no-cache'
+      Pragma: 'no-cache',
+      ...(init?.headers || {})
     }
   })
 
@@ -280,4 +282,73 @@ export function buildSubtleBlocks(firstHtml: string) {
 export function extractTopicContentHtml(firstHtml: string) {
   const match = firstHtml.match(/<div class="topic_content">([\s\S]*?)<\/div>/)
   return match ? match[1] : ''
+}
+
+function extractV2exOnce(html: string) {
+  const inputMatch = html.match(/<input\b[^>]*\bname=["']once["'][^>]*>/i)
+  if (inputMatch) {
+    const value = inputMatch[0].match(/\bvalue=["']([^"']+)["']/i)?.[1]
+    if (value) return value
+  }
+
+  const reverseInputMatch = html.match(/<input\b[^>]*\bvalue=["']([^"']+)["'][^>]*\bname=["']once["'][^>]*>/i)
+  if (reverseInputMatch?.[1]) return reverseInputMatch[1]
+
+  return (
+    html.match(/\bonce\s*[:=]\s*["']?([0-9a-zA-Z_-]+)["']?/i)?.[1] ||
+    html.match(/[?&]once=([0-9a-zA-Z_-]+)/i)?.[1] ||
+    ''
+  )
+}
+
+function describeV2exReplyPage(html: string) {
+  if (/\/signin|登录|登入|sign in/i.test(html)) return 'V2EX_SIGNIN_PAGE'
+  if (/captcha|cloudflare|cf-|challenge|Just a moment/i.test(html)) return 'V2EX_CHALLENGE_PAGE'
+  if (/主题已被锁定|不能回复|无法回复|closed|locked/i.test(html)) return 'V2EX_REPLY_CLOSED'
+  if (!/reply|回复|once/i.test(html)) return 'V2EX_REPLY_FORM_MISSING'
+  return 'V2EX_ONCE_NOT_FOUND'
+}
+
+function extractV2exReplyAction(html: string, topicUrl: string) {
+  const formMatch =
+    html.match(/<form\b[^>]*\bmethod=["']post["'][^>]*>[\s\S]*?\bname=["']once["'][\s\S]*?<\/form>/i) ||
+    html.match(/<form\b[^>]*>[\s\S]*?\bname=["']once["'][\s\S]*?<\/form>/i)
+  const action = formMatch?.[0].match(/\baction=["']([^"']+)["']/i)?.[1] || ''
+  if (!action) return topicUrl
+  if (/^https?:\/\//i.test(action)) return action
+  return `https://www.v2ex.com${action.startsWith('/') ? action : `/${action}`}`
+}
+
+export async function createTopicReply(topicId: number, raw: string, env: { V2_COOKIE: string }, replyToAuthor?: string) {
+  const content = raw.trim()
+  if (!content) throw new Error('REPLY_EMPTY')
+
+  const topicUrl = `https://www.v2ex.com/t/${topicId}`
+  const pageResp = await safeFetch(topicUrl, env)
+  const pageHtml = await pageResp.text()
+  const once = extractV2exOnce(pageHtml)
+  if (!once) throw new Error(describeV2exReplyPage(pageHtml))
+  const replyUrl = extractV2exReplyAction(pageHtml, topicUrl)
+
+  const replyContent =
+    replyToAuthor && !new RegExp(`^\\s*@${replyToAuthor}\\b`).test(content)
+      ? `@${replyToAuthor} ${content}`
+      : content
+
+  const body = new URLSearchParams()
+  body.set('content', replyContent)
+  body.set('once', once)
+
+  const resp = await safeFetch(replyUrl, env, {
+    method: 'POST',
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Origin: 'https://www.v2ex.com',
+      Referer: topicUrl
+    },
+    body
+  })
+
+  return { status: resp.status, url: resp.url }
 }

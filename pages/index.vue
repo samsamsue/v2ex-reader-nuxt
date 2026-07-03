@@ -90,7 +90,7 @@ const handleAutoJump = () => {
 }
 
 const goToAll = () => {
-  location.href = '/all'
+  location.href = '/v2ex'
 }
 
 onMounted(() => {

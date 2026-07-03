@@ -30,7 +30,9 @@ export const USER_AGENT =
   process.env.LINUXDO_USER_AGENT ||
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 export const ENV = {
-  LINUXDO_COOKIE: process.env.LINUXDO_COOKIE || process.env.V2_COOKIE || ''
+  LINUXDO_COOKIE: process.env.LINUXDO_COOKIE || process.env.V2_COOKIE || '',
+  LINUXDO_CF_CLEARANCE: process.env.LINUXDO_CF_CLEARANCE || '',
+  LINUXDO_USER_AGENT: process.env.LINUXDO_USER_AGENT || ''
 }
 
 const PROXY_URL = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || ''
@@ -48,6 +50,23 @@ export const COOKIE_VALUE = ADMIN_PASS
   : 'no_pass_fallback'
 
 type SiteEnv = typeof ENV
+
+type RequestLike = {
+  node?: {
+    req?: {
+      headers?: Record<string, string | string[] | undefined>
+    }
+  }
+}
+
+export function createRequestEnv(event?: RequestLike): SiteEnv {
+  const rawUserAgent = event?.node?.req?.headers?.['user-agent']
+  const userAgent = Array.isArray(rawUserAgent) ? rawUserAgent[0] : rawUserAgent
+  return {
+    ...ENV,
+    LINUXDO_USER_AGENT: ENV.LINUXDO_USER_AGENT || userAgent || USER_AGENT
+  }
+}
 
 type DiscourseTopicListResponse = {
   users?: Array<{ id: number; username?: string; name?: string }>
@@ -141,13 +160,21 @@ function sanitizeCookie(rawCookie: string) {
   return cleaned
 }
 
+function appendCookieValue(cookie: string, name: string, value: string) {
+  const safeValue = value.trim()
+  if (!safeValue) return cookie
+  const pattern = new RegExp(`(?:^|;\\s*)${name}=`, 'i')
+  if (pattern.test(cookie)) return cookie
+  return cookie ? `${cookie}; ${name}=${safeValue}` : `${name}=${safeValue}`
+}
+
 export async function safeFetch(pathOrUrl: string, env: SiteEnv, init?: RequestInit) {
-  const safeCookie = sanitizeCookie(env.LINUXDO_COOKIE || '')
+  const safeCookie = appendCookieValue(sanitizeCookie(env.LINUXDO_COOKIE || ''), 'cf_clearance', env.LINUXDO_CF_CLEARANCE || '')
   const resp = await fetch(buildUrl(pathOrUrl), {
     ...init,
     dispatcher: PROXY_AGENT || undefined,
     headers: {
-      'User-Agent': USER_AGENT,
+      'User-Agent': env.LINUXDO_USER_AGENT || USER_AGENT,
       Accept: 'application/json, text/html, application/xhtml+xml;q=0.9, */*;q=0.8',
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       Referer: `${SITE_BASE}/`,
@@ -165,8 +192,8 @@ export async function safeFetch(pathOrUrl: string, env: SiteEnv, init?: RequestI
   return resp
 }
 
-export async function safeFetchJson<T>(pathOrUrl: string, env: SiteEnv) {
-  const resp = await safeFetch(pathOrUrl, env)
+export async function safeFetchJson<T>(pathOrUrl: string, env: SiteEnv, init?: RequestInit) {
+  const resp = await safeFetch(pathOrUrl, env, init)
   return (await resp.json()) as T
 }
 
@@ -180,7 +207,11 @@ export async function safeFetchText(pathOrUrl: string, env: SiteEnv) {
 }
 
 export function getUpstreamHint() {
-  return `${SITE_NAME} returned 403 for the current outbound IP. Try a different HTTP_PROXY/HTTPS_PROXY, refresh LINUXDO_COOKIE from a logged-in browser if it is already set, or point LINUXDO_BASE_URL to a working reverse proxy.`
+  const hasClearance = /(?:^|;\s*)cf_clearance=/i.test(sanitizeCookie(ENV.LINUXDO_COOKIE || '')) || Boolean(ENV.LINUXDO_CF_CLEARANCE)
+  if (hasClearance) {
+    return `${SITE_NAME} returned a Cloudflare challenge for the current outbound IP. cf_clearance is configured, so refresh LINUXDO_COOKIE from the same browser/user-agent and the same proxy/export IP used by this server, or set LINUXDO_USER_AGENT to match that browser.`
+  }
+  return `${SITE_NAME} returned a Cloudflare challenge for the current outbound IP. Try a different HTTP_PROXY/HTTPS_PROXY, add cf_clearance from a logged-in browser to LINUXDO_COOKIE or LINUXDO_CF_CLEARANCE, or point LINUXDO_BASE_URL to a working reverse proxy.`
 }
 
 export function createUpstreamErrorPayload(error: unknown) {
@@ -631,4 +662,27 @@ export async function fetchRepliesById(id: number, env: SiteEnv) {
   } catch (rssError) {
     throw jsonError || rssError
   }
+}
+
+export async function createTopicReply(topicId: number, raw: string, env: SiteEnv, replyToPostNumber?: number | null) {
+  const content = raw.trim()
+  if (!content) throw new Error('REPLY_EMPTY')
+
+  const payload: Record<string, string | number> = {
+    topic_id: topicId,
+    raw: content
+  }
+  if (replyToPostNumber) payload.reply_to_post_number = replyToPostNumber
+
+  return await safeFetchJson('/posts.json', env, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      Origin: SITE_BASE,
+      Referer: `${SITE_BASE}/t/topic/${topicId}`
+    },
+    body: JSON.stringify(payload)
+  })
 }

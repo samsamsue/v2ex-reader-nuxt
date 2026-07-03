@@ -1,5 +1,5 @@
 import { defineEventHandler, getCookie, getRouterParam, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, createUpstreamErrorPayload, decodeId, fetchRepliesById, fetchTopicById } from '../../utils/linuxdo'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, createRequestEnv, createUpstreamErrorPayload, decodeId, fetchRepliesById, fetchTopicById } from '../../utils/linuxdo'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)
@@ -17,7 +17,8 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const [topicData, replyData] = await Promise.all([fetchTopicById(rawId, ENV), fetchRepliesById(rawId, ENV)])
+    const requestEnv = createRequestEnv(event)
+    const [topicData, replyData] = await Promise.all([fetchTopicById(rawId, requestEnv), fetchRepliesById(rawId, requestEnv)])
     return { ...topicData, ...replyData, rawId }
   } catch (error) {
     const payload = createUpstreamErrorPayload(error)

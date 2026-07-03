@@ -16,6 +16,8 @@
     :share-base-path="'/s'"
     :share-code-prefix="shareCodePrefix"
     :open-original-template="openOriginalTemplate"
+    :external-floor-template="externalFloorTemplate"
+    :reply-api="replyApi"
     :login-title="pageTitle"
     :compact-title="true"
   />
@@ -32,13 +34,15 @@ const route = useRoute()
 const rawCode = computed(() => String(route.params.code || ''))
 const isLinuxdo = computed(() => rawCode.value.startsWith(LINUXDO_PREFIX))
 const decodedCode = computed(() => isLinuxdo.value ? rawCode.value.slice(LINUXDO_PREFIX.length) : rawCode.value)
-const fromPath = computed(() => route.fullPath || '/all')
-const backTo = computed(() => isLinuxdo.value ? '/all?site=linuxdo' : '/all')
+const fromPath = computed(() => route.fullPath || (isLinuxdo.value ? '/linuxdo' : '/v2ex'))
+const backTo = computed(() => isLinuxdo.value ? '/linuxdo' : '/v2ex')
 const topicApiBase = computed(() => isLinuxdo.value ? '/api/topic' : '/api/v2ex/topic')
 const repliesApiBase = computed(() => isLinuxdo.value ? '/api/replies' : '/api/v2ex/replies')
 const pageTitle = computed(() => isLinuxdo.value ? 'linux.do Reader' : 'V2EX Reader')
 const shareCodePrefix = computed(() => isLinuxdo.value ? LINUXDO_PREFIX : '')
 const openOriginalTemplate = computed(() => isLinuxdo.value ? 'https://linux.do/t/topic/{id}' : 'https://www.v2ex.com/t/{id}')
+const externalFloorTemplate = computed(() => isLinuxdo.value ? 'https://linux.do/t/topic/{id}/{floor}' : 'https://www.v2ex.com/t/{id}#reply{floor}')
+const replyApi = computed(() => isLinuxdo.value ? '/api/reply' : '/api/v2ex/reply')
 const salt = computed(() => isLinuxdo.value ? LINUXDO_SALT : V2EX_SALT)
 const shareSalt = computed(() => isLinuxdo.value ? LINUXDO_SHARE_SALT : V2EX_SHARE_SALT)
 </script>
