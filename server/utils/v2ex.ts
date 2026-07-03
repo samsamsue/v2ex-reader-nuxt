@@ -447,9 +447,6 @@ export async function createTopicReply(topicId: number, raw: string, env: V2Env,
       : content
 
   const body = new URLSearchParams()
-  Object.entries(replyFields).forEach(([key, value]) => {
-    if (key !== 'content') body.set(key, value)
-  })
   body.set('content', replyContent)
   body.set('once', once)
 
@@ -457,10 +454,17 @@ export async function createTopicReply(topicId: number, raw: string, env: V2Env,
     method: 'POST',
     redirect: 'manual',
     headers: {
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: '*/*',
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       Origin: 'https://www.v2ex.com',
-      Referer: topicUrl
+      Referer: topicUrl,
+      'X-Requested-With': 'XMLHttpRequest',
+      'Sec-CH-UA': '"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+      'Sec-CH-UA-Mobile': '?0',
+      'Sec-CH-UA-Platform': '"Windows"',
+      'Sec-Fetch-Dest': 'empty',
+      'Sec-Fetch-Mode': 'cors',
+      'Sec-Fetch-Site': 'same-origin'
     },
     body
   })
