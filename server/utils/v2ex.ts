@@ -58,7 +58,23 @@ export const decodeShare = (code: string) => {
   }
 }
 
-export async function safeFetch(url: string, env: { V2_COOKIE: string }, init?: RequestInit) {
+type V2Env = typeof ENV
+
+function normalizeHtmlText(value: string) {
+  return (value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export async function safeFetch(url: string, env: V2Env, init?: RequestInit) {
   let safeCookie = env.V2_COOKIE || ''
   if (safeCookie) {
     safeCookie = safeCookie.replace(/^Cookie:\s*/i, '').trim()
@@ -85,14 +101,16 @@ export async function safeFetch(url: string, env: { V2_COOKIE: string }, init?: 
     }
   })
 
+  const manualRedirect = init?.redirect === 'manual'
   if (resp.status === 403) throw new Error('V2EX_FORBIDDEN_403')
+  if (resp.status >= 300 && resp.status < 400 && manualRedirect) return resp
   if (resp.status === 302 || resp.url.includes('/signin')) throw new Error('V2EX_COOKIE_EXPIRED')
   if (!resp.ok) throw new Error('V2EX_NET_ERROR_' + resp.status)
 
   return resp
 }
 
-export async function fetchAndParseList(url: string, env: { V2_COOKIE: string }) {
+export async function fetchAndParseList(url: string, env: V2Env) {
   const resp = await safeFetch(url, env)
   const htmlStr = await resp.text()
   const items: Array<{ code: string; title: string; author: string; replies: string; time: string }> = []
@@ -158,7 +176,7 @@ function extractLeadingReplyReferenceSafe(contentHtml: string) {
   }
 }
 
-export async function fetchAndParsePostFull(targetUrl: string, env: { V2_COOKIE: string }) {
+export async function fetchAndParsePostFull(targetUrl: string, env: V2Env) {
   const firstResp = await safeFetch(targetUrl, env)
   const firstHtml = await firstResp.text()
   const title = (firstHtml.match(/<h1>(.*?)<\/h1>/) || ['', '无标题'])[1].replace(' - V2EX', '')
@@ -309,6 +327,17 @@ function describeV2exReplyPage(html: string) {
   return 'V2EX_ONCE_NOT_FOUND'
 }
 
+function describeV2exReplyResult(html: string) {
+  const plain = normalizeHtmlText(html)
+  if (/每日登录奖励|请登录|登录后方可|\/signin|sign in/i.test(html)) return 'V2EX_COOKIE_EXPIRED'
+  if (/captcha|cloudflare|cf-|challenge|Just a moment/i.test(html)) return 'V2EX_CHALLENGE_PAGE'
+  if (/主题已被锁定|不能回复|无法回复|closed|locked/i.test(html)) return 'V2EX_REPLY_CLOSED'
+  if (/回复内容不能为空|内容不能为空|请输入回复内容/i.test(plain)) return 'V2EX_REPLY_EMPTY_REJECTED'
+  if (/频率|太快|稍后|rate limit|too fast|spam/i.test(plain)) return 'V2EX_REPLY_RATE_LIMITED'
+  if (/感谢你的回复|回复成功|感谢回复/i.test(plain)) return ''
+  return 'V2EX_REPLY_NOT_CONFIRMED'
+}
+
 function extractV2exReplyAction(html: string, topicUrl: string) {
   const formMatch =
     html.match(/<form\b[^>]*\bmethod=["']post["'][^>]*>[\s\S]*?\bname=["']once["'][\s\S]*?<\/form>/i) ||
@@ -319,7 +348,7 @@ function extractV2exReplyAction(html: string, topicUrl: string) {
   return `https://www.v2ex.com${action.startsWith('/') ? action : `/${action}`}`
 }
 
-export async function createTopicReply(topicId: number, raw: string, env: { V2_COOKIE: string }, replyToAuthor?: string) {
+export async function createTopicReply(topicId: number, raw: string, env: V2Env, replyToAuthor?: string) {
   const content = raw.trim()
   if (!content) throw new Error('REPLY_EMPTY')
 
@@ -341,6 +370,7 @@ export async function createTopicReply(topicId: number, raw: string, env: { V2_C
 
   const resp = await safeFetch(replyUrl, env, {
     method: 'POST',
+    redirect: 'manual',
     headers: {
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -350,5 +380,22 @@ export async function createTopicReply(topicId: number, raw: string, env: { V2_C
     body
   })
 
-  return { status: resp.status, url: resp.url }
+  if (resp.status >= 300 && resp.status < 400) {
+    const location = resp.headers.get('location') || ''
+    if (/\/signin/i.test(location)) throw new Error('V2EX_COOKIE_EXPIRED')
+    if (location) {
+      return {
+        status: resp.status,
+        url: new URL(location, replyUrl).toString(),
+        confirmed: true,
+        redirected: true
+      }
+    }
+  }
+
+  const resultHtml = await resp.text()
+  const resultError = describeV2exReplyResult(resultHtml)
+  if (resultError) throw new Error(resultError)
+
+  return { status: resp.status, url: resp.url, confirmed: true }
 }
