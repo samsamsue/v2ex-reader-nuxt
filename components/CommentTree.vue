@@ -37,7 +37,7 @@
           v-if="externalFloorUrl"
           type="button"
           class="comment-floor-link"
-          @click="openExternalFloor(node.id)"
+          @click="openExternalFloor(node)"
         >
           #{{ node.id }}
         </button>
@@ -85,9 +85,10 @@ const jumpToFloor = (floor: number) => {
   }
 }
 
-const openExternalFloor = (floor: number | string) => {
+const openExternalFloor = (node: any) => {
   if (typeof window === 'undefined' || !props.externalFloorUrl) return
-  window.open(props.externalFloorUrl.replace('{floor}', String(floor)), '_blank')
+  const target = node?.externalId || node?.id || ''
+  window.open(props.externalFloorUrl.replace('{floor}', String(target)), '_blank')
 }
 
 const parsedContent = computed(() => {

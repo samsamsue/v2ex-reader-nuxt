@@ -17,7 +17,6 @@
     :share-code-prefix="shareCodePrefix"
     :open-original-template="openOriginalTemplate"
     :external-floor-template="externalFloorTemplate"
-    :reply-api="replyApi"
     :login-title="pageTitle"
     :compact-title="true"
   />
@@ -41,8 +40,7 @@ const repliesApiBase = computed(() => isLinuxdo.value ? '/api/replies' : '/api/v
 const pageTitle = computed(() => isLinuxdo.value ? 'linux.do Reader' : 'V2EX Reader')
 const shareCodePrefix = computed(() => isLinuxdo.value ? LINUXDO_PREFIX : '')
 const openOriginalTemplate = computed(() => isLinuxdo.value ? 'https://linux.do/t/topic/{id}' : 'https://www.v2ex.com/t/{id}')
-const externalFloorTemplate = computed(() => isLinuxdo.value ? 'https://linux.do/t/topic/{id}/{floor}' : 'https://www.v2ex.com/t/{id}#reply{floor}')
-const replyApi = computed(() => isLinuxdo.value ? '/api/reply' : '/api/v2ex/reply')
+const externalFloorTemplate = computed(() => isLinuxdo.value ? 'https://linux.do/t/topic/{id}/{floor}' : 'https://www.v2ex.com/t/{id}#{floor}')
 const salt = computed(() => isLinuxdo.value ? LINUXDO_SALT : V2EX_SALT)
 const shareSalt = computed(() => isLinuxdo.value ? LINUXDO_SHARE_SALT : V2EX_SHARE_SALT)
 </script>

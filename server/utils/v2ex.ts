@@ -231,6 +231,7 @@ export async function fetchAndParsePostFull(targetUrl: string, env: V2Env) {
   let userMap: Record<string, number> = {}
   let allReplies: Array<{
     id: number
+    externalId: string
     author: string
     replyAuthor: string
     replyHtml: string
@@ -241,8 +242,14 @@ export async function fetchAndParsePostFull(targetUrl: string, env: V2Env) {
   }> = []
   let globalIdx = 1
   pagesHtml.forEach((html) => {
-    const blocks = html.substring(html.indexOf('<div id="replies"')).match(/<td width="auto" valign="top" align="left">.*?<\/td>/gs) || []
-    blocks.forEach((block) => {
+    const repliesHtml = html.substring(html.indexOf('<div id="replies"'))
+    const externalIds = Array.from(
+      repliesHtml.matchAll(/<div\b(?=[^>]*\bid=["'](r_[0-9]+)["'])(?=[^>]*\bclass=["'][^"']*\bcell\b)/gi),
+      (match) => match[1]
+    )
+    const blocks = repliesHtml.match(/<td width="auto" valign="top" align="left">.*?<\/td>/gs) || []
+    blocks.forEach((block, index) => {
+      const externalId = externalIds[index] || ''
       const auth = (block.match(/strong><a href="\/member\/.*?">(.*?)<\/a><\/strong>/) || ['', ''])[1]
       const timeMatch = block.match(/class="ago" title=".*?">(.*?)<\/span>/)
       const contentBlock = (block.match(/<div class="reply_content">(.*?)<\/div>/s) || ['', ''])[1]
@@ -254,6 +261,7 @@ export async function fetchAndParsePostFull(targetUrl: string, env: V2Env) {
       const likes = (block.match(/alt="❤️" \/>\s*(\d+)/) || [0, 0])[1]
       const reply = {
         id: globalIdx++,
+        externalId,
         author: auth,
         replyAuthor,
         replyHtml,
