@@ -32,6 +32,14 @@ Set to `1` only when the Nuxt server can reach linux.do without `LINUXDO_PROXY_U
 
 Set to `1` to send `LINUXDO_COOKIE` / `LINUXDO_CF_CLEARANCE` with linux.do RSS requests. This can help when your browser can read RSS through the same proxy because it already has a valid linux.do session.
 
+### LINUXDO_RSS_CURL_FALLBACK
+
+linux.do RSS requests automatically retry with `curl` when Node fetch fails. Set to `0` to disable this fallback.
+
+### LINUXDO_CURL_BIN
+
+Optional curl executable path. Defaults to `curl`.
+
 ### LINUXDO_BASE_URL
 
 Optional linux.do base URL override.

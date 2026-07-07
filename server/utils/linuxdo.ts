@@ -1,7 +1,9 @@
 import crypto from 'crypto'
+import { execFile } from 'child_process'
 import { Agent, ProxyAgent } from 'undici'
 import { readFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
+import { promisify } from 'util'
 import MarkdownIt from 'markdown-it'
 import { getProxyConfig, redactProxyUrl } from './proxy'
 
@@ -22,6 +24,8 @@ function loadEnvFile() {
 }
 
 loadEnvFile()
+
+const execFileAsync = promisify(execFile)
 
 export const SALT = 987654
 export const SHARE_SALT = 1234567
@@ -218,6 +222,76 @@ export async function safeFetchJson<T>(pathOrUrl: string, env: SiteEnv, init?: R
   return (await resp.json()) as T
 }
 
+function looksLikeXmlRss(text: string) {
+  const sample = text.trim().slice(0, 500).toLowerCase()
+  return sample.includes('<rss') || sample.includes('<feed') || sample.includes('<?xml')
+}
+
+function isCloudflareChallengeText(text: string) {
+  return /cf-mitigated|cloudflare|challenge-platform|just a moment/i.test(text)
+}
+
+function normalizeCurlError(error: unknown) {
+  const err = error as { message?: string; stderr?: string | Buffer; stdout?: string | Buffer; code?: string | number }
+  const stderr = err?.stderr ? String(err.stderr).trim() : ''
+  const stdout = err?.stdout ? String(err.stdout).trim().slice(0, 200) : ''
+  const message = err?.message || String(error || 'UNKNOWN_ERROR')
+  return [message, stderr, stdout && `stdout: ${stdout}`].filter(Boolean).join(' | ')
+}
+
+async function curlFetchText(pathOrUrl: string, env: SiteEnv, options: { useProxy: boolean; withCookie: boolean }) {
+  const url = buildUrl(pathOrUrl)
+  const curlBin = process.env.LINUXDO_CURL_BIN || 'curl'
+  const safeCookie = options.withCookie
+    ? appendCookieValue(sanitizeCookie(env.LINUXDO_COOKIE || ''), 'cf_clearance', env.LINUXDO_CF_CLEARANCE || '')
+    : ''
+  const args = [
+    '--location',
+    '--silent',
+    '--show-error',
+    '--fail',
+    '--compressed',
+    '--max-time',
+    '15',
+    '--connect-timeout',
+    '8',
+    '--user-agent',
+    env.LINUXDO_USER_AGENT || USER_AGENT,
+    '--header',
+    'Accept: application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, text/html;q=0.7, */*;q=0.5',
+    '--header',
+    'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8',
+    '--referer',
+    `${SITE_BASE}/`
+  ]
+
+  if (options.useProxy && PROXY_URL) {
+    args.push('--proxy', PROXY_URL)
+  } else if (!options.useProxy) {
+    args.push('--noproxy', '*')
+  }
+
+  if (safeCookie) {
+    args.push('--header', `Cookie: ${safeCookie}`)
+  }
+
+  args.push(url)
+
+  const { stdout } = await execFileAsync(curlBin, args, {
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 5 * 1024 * 1024
+  })
+  const text = String(stdout || '')
+
+  if (!looksLikeXmlRss(text)) {
+    if (isCloudflareChallengeText(text)) throw new Error('LINUXDO_FORBIDDEN_403')
+    throw new Error(`LINUXDO_RSS_CURL_INVALID_RESPONSE: ${text.trim().slice(0, 200) || 'EMPTY_RESPONSE'}`)
+  }
+
+  return text
+}
+
 export async function safeFetchText(pathOrUrl: string, env: SiteEnv) {
   const useProxy = process.env.LINUXDO_RSS_NO_PROXY !== '1'
   const withCookie = process.env.LINUXDO_RSS_WITH_COOKIE === '1' || Boolean(env.LINUXDO_CF_CLEARANCE)
@@ -234,6 +308,17 @@ export async function safeFetchText(pathOrUrl: string, env: SiteEnv) {
     })
     return await resp.text()
   } catch (error) {
+    if (process.env.LINUXDO_RSS_CURL_FALLBACK !== '0') {
+      try {
+        const text = await curlFetchText(pathOrUrl, env, { useProxy, withCookie })
+        const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
+        console.warn(`[linux.do] RSS fetch fallback to curl for ${pathOrUrl}: ${message}`)
+        return text
+      } catch (curlError) {
+        console.warn(`[linux.do] RSS curl fallback failed for ${pathOrUrl}: ${normalizeCurlError(curlError)}`)
+      }
+    }
+
     if (!useProxy) {
       const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
       throw new Error(`LINUXDO_RSS_DIRECT_FAILED: ${message}`)
@@ -258,6 +343,7 @@ export function getLinuxDoDiagnostics(env: SiteEnv = ENV) {
     proxySource: PROXY_CONFIG.source || '',
     rssUsesProxy: process.env.LINUXDO_RSS_NO_PROXY !== '1',
     rssSendsCookie: process.env.LINUXDO_RSS_WITH_COOKIE === '1' || Boolean(env.LINUXDO_CF_CLEARANCE),
+    rssCurlFallback: process.env.LINUXDO_RSS_CURL_FALLBACK !== '0',
     hasLinuxDoCookie: Boolean(safeCookie),
     hasCfClearance: /(?:^|;\s*)cf_clearance=/i.test(safeCookie) || Boolean(env.LINUXDO_CF_CLEARANCE),
     hasLinuxDoUserAgent: Boolean(env.LINUXDO_USER_AGENT)
