@@ -10,16 +10,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
-    - name: Deploy
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SERVER_HOST }}
-        username: ${{ secrets.SERVER_USER }}
-        key: ${{ secrets.SERVER_KEY }}
-        script: |
-          cd /opt/v2ex-reader-nuxt
-          git pull
-          npm install
-          npm run build
-          pm2 restart v2ex-reader
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
+          script: |
+            cd /root/v2ex-reader-nuxt
+            git pull --ff-only origin main
+            npm ci
+            npm run build
+            systemctl restart v2ex-reader-nuxt.service
