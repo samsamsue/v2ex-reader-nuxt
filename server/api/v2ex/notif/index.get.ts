@@ -18,12 +18,14 @@ function parseTopicHref(block: string) {
   const topicMatch = href.match(/\/t\/(\d+)/)
   if (!topicMatch) return null
 
-  const replyMatch = href.match(/#(?:reply|r_)?(\d+)/i)
   const pageMatch = href.match(/[?&]p=(\d+)/i)
+  const floorMatch = href.match(/#reply(\d+)/i)
+  const externalReplyMatch = href.match(/#r_(\d+)/i)
 
   return {
     topicId: topicMatch[1],
-    replyId: replyMatch ? replyMatch[1] : '',
+    floor: floorMatch ? floorMatch[1] : '',
+    replyId: externalReplyMatch ? externalReplyMatch[1] : '',
     replyPage: pageMatch ? pageMatch[1] : ''
   }
 }
@@ -42,6 +44,7 @@ export default defineEventHandler(async (event) => {
     const items: Array<{
       id: string
       encodedId: string
+      floor: string
       replyId: string
       replyPage: string
       desc: string
@@ -64,6 +67,7 @@ export default defineEventHandler(async (event) => {
       items.push({
         id: notificationId,
         encodedId: encodeId(topic.topicId),
+        floor: topic.floor,
         replyId: topic.replyId,
         replyPage: topic.replyPage,
         desc: fadeMatch ? stripHtml(fadeMatch[1]) : 'New notification',

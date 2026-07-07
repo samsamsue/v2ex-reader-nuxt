@@ -375,15 +375,16 @@ const goToTopic = async (notif: any) => {
   showNotif.value = false
   const encodedId = typeof notif === 'string' ? notif : notif?.encodedId
   if (!encodedId) return
+  const floor = typeof notif === 'string' ? '' : String(notif?.floor || '')
   const replyId = typeof notif === 'string' ? '' : String(notif?.replyId || '')
   const replyPage = typeof notif === 'string' ? '' : String(notif?.replyPage || '')
   const query: Record<string, string> = {}
+  if (floor) query.floor = floor
   if (replyId) query.reply = replyId
   if (replyPage) query.page = replyPage
   await navigateTo({
     path: topicLink(encodedId),
-    query: Object.keys(query).length ? query : undefined,
-    hash: replyId ? `#reply${replyId}` : undefined
+    query: Object.keys(query).length ? query : undefined
   })
 }
 

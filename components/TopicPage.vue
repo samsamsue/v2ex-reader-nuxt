@@ -441,7 +441,7 @@ const getQueryString = (value: unknown) => {
   return String(value || '')
 }
 
-const normalizeReplyTarget = (value: string) => value.replace(/^#?\/?(?:reply|r_|c_)?/i, '')
+const normalizeReplyTarget = (value: string) => value.replace(/^#?\/?(?:r_|c_)?/i, '')
 
 const highlightAndScrollToElement = (el: HTMLElement) => {
   window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
@@ -450,11 +450,11 @@ const highlightAndScrollToElement = (el: HTMLElement) => {
   el.classList.add('flash-highlight')
 }
 
-const jumpToRequestedReply = async () => {
+const jumpToRequestedFloor = async () => {
   if (!process.client) return
 
   const floorQuery = getQueryString(route.query.floor)
-  const replyQuery = normalizeReplyTarget(getQueryString(route.query.reply) || route.hash)
+  const replyQuery = normalizeReplyTarget(getQueryString(route.query.reply))
   const floor = floorQuery || (replyQuery ? replyFloorMap.value[replyQuery] : '')
   if (!floor && !replyQuery) return
 
@@ -481,7 +481,9 @@ const jumpToRequestedReply = async () => {
     window.requestAnimationFrame(tryJump)
   }
 
-  window.requestAnimationFrame(tryJump)
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(tryJump)
+  })
 }
 
 const focusReplyComposer = () => {
@@ -829,7 +831,7 @@ const fetchReplies = async (silent = false): Promise<boolean> => {
     replyFloorMap.value = res?.replyFloorMap || {}
     replyNotice.value = res?.replyNotice || ''
     await refreshCodeHighlighting()
-    await jumpToRequestedReply()
+    await jumpToRequestedFloor()
     
     if (silent && prevIds.length) {
       const newIds = allIds.value.filter((id) => !prevIds.includes(id))
@@ -1021,7 +1023,7 @@ watch(() => rawId.value, async (next, prev) => {
 })
 
 watch(
-  () => [route.query.reply, route.query.floor, route.query.page, route.hash],
+  () => [route.query.reply, route.query.floor, route.query.page],
   () => {
     lastAutoJumpKey.value = ''
     void fetchReplies()
