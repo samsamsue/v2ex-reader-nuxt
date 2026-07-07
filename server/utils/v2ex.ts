@@ -198,7 +198,7 @@ function extractLeadingReplyReferenceSafe(contentHtml: string) {
   }
 }
 
-export async function fetchAndParsePostFull(targetUrl: string, env: V2Env) {
+export async function fetchAndParsePostFull(targetUrl: string, env: V2Env, options: { minPages?: number } = {}) {
   const firstResp = await safeFetch(targetUrl, env)
   const firstHtml = await firstResp.text()
   const title = (firstHtml.match(/<h1>(.*?)<\/h1>/) || ['', '无标题'])[1].replace(' - V2EX', '')
@@ -221,7 +221,8 @@ export async function fetchAndParsePostFull(targetUrl: string, env: V2Env) {
     const maxPage = Math.max(...pageMatches.map((m) => parseInt(m.match(/p=(\d+)/)![1], 10)))
     if (maxPage > 1) {
       const fetchers = [] as Promise<string>[]
-      for (let i = 2; i <= Math.min(maxPage, 3); i++) {
+      const pagesToFetch = Math.max(3, options.minPages || 0)
+      for (let i = 2; i <= Math.min(maxPage, pagesToFetch); i++) {
         fetchers.push(safeFetch(`${targetUrl}?p=${i}`, env).then((r) => r.text()))
       }
       pagesHtml = pagesHtml.concat(await Promise.all(fetchers))
@@ -308,7 +309,12 @@ export async function fetchAndParsePostFull(targetUrl: string, env: V2Env) {
     opAuthor,
     replies: tree,
     total: allReplies.length,
-    allIds: allReplies.map((reply) => reply.id)
+    allIds: allReplies.map((reply) => reply.id),
+    replyFloorMap: Object.fromEntries(
+      allReplies
+        .filter((reply) => reply.externalId)
+        .map((reply) => [reply.externalId.replace(/^r_/, ''), reply.id])
+    )
   }
 }
 

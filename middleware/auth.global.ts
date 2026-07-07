@@ -1,6 +1,6 @@
 export default defineNuxtRouteMiddleware((to) => {
   const config = useRuntimeConfig()
-  const token = useCookie('linuxdo_reader_auth')
+  const token = useCookie('v2_auth_token')
 
   if (!config.public.hasPassword) return
 

@@ -42,7 +42,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 const SALT = 987654
 const route = useRoute()
 const config = useRuntimeConfig()
-const token = useCookie('linuxdo_reader_auth')
+const token = useCookie('v2_auth_token')
 
 const inputUrl = ref('')
 const showPrompt = ref(false)

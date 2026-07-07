@@ -1,6 +1,13 @@
 <template>
   <div>
-    <div v-for="node in nodes" :key="node.id" class="comment-item" :id="`c_${node.id}`" :style="nodeStyle(node)">
+    <div
+      v-for="node in nodes"
+      :key="node.id"
+      class="comment-item"
+      :id="`c_${node.id}`"
+      :data-external-reply-id="normalizeExternalId(node.externalId)"
+      :style="nodeStyle(node)"
+    >
       <div class="comment-bar">
         <b style="color: var(--author);">{{ node.author }}</b>
         <span v-if="node.author === opAuthor" class="op-tag">OP</span>
@@ -76,6 +83,8 @@ const nodeStyle = () => {
     ? 'padding: 18px 0; border-bottom: 1px solid var(--border);'
     : 'padding-top: 12px; padding-left: 1.2rem; border-left: 1.5px solid var(--border);'
 }
+
+const normalizeExternalId = (value: unknown) => String(value || '').replace(/^r_/, '')
 
 const jumpToFloor = (floor: number) => {
   if (typeof window === 'undefined') return

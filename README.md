@@ -1,9 +1,13 @@
 ## ENV
-### V2_COOKIE
-v2ex的cookie，可接收新消息通知
 
-### LINUXDO_COOKIE
-linux.do的cookie
+### V2_COOKIE
+
+V2EX cookie, used for authenticated list, notification, and reply requests.
+
+### V2_USER_AGENT
+
+Optional browser user-agent for V2EX requests.
 
 ### PASSWORD
-为本程序设置访问密码，不设置默认开放
+
+Optional access password for this reader. When unset, the app is open.

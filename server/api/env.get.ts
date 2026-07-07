@@ -22,10 +22,8 @@ loadEnvFile()
 
 export default defineEventHandler(() => {
   return {
-    linuxDoBaseUrl: process.env.LINUXDO_BASE_URL || 'https://linux.do',
     httpProxy: process.env.HTTP_PROXY || '',
     httpsProxy: process.env.HTTPS_PROXY || '',
-    hasLinuxDoCookie: Boolean(process.env.LINUXDO_COOKIE || process.env.V2_COOKIE),
     hasV2Cookie: Boolean(process.env.V2_COOKIE),
     hasPassword: Boolean(process.env.PASSWORD)
   }

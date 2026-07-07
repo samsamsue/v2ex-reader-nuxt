@@ -20,7 +20,7 @@
           <div v-if="showQr" id="qrPopup" v-show="qrVisible" @click.stop>
             <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR" width="140" height="140" />
           </div>
-          <div v-if="showOpenOriginal" class="fab" @click.stop="openOriginal" title="在 linux.do 原站打开">
+          <div v-if="showOpenOriginal" class="fab" @click.stop="openOriginal" title="在 V2EX 原站打开">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 16 4-4-4-4"/><path d="M3 12h11"/><path d="M3 8V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/></svg>
           </div>
           <div v-if="canReply" class="fab" title="回复" @click.stop="openReplyComposer()">
@@ -166,15 +166,17 @@ const props = withDefaults(defineProps<{
   showBack: false,
   backTo: '/v2ex',
   showOpenOriginal: false,
-  pageTitle: 'linux.do Reader',
+  pageTitle: 'V2EX Reader',
   compactTitle: false,
   shareBasePath: '/s',
   shareCodePrefix: '',
-  openOriginalTemplate: 'https://linux.do/t/topic/{id}',
+  openOriginalTemplate: 'https://www.v2ex.com/t/{id}',
   externalFloorTemplate: '',
   replyApi: '',
-  loginTitle: 'linux.do Reader'
+  loginTitle: 'V2EX Reader'
 })
+
+const route = useRoute()
 
 useHead({ title: props.pageTitle })
 
@@ -190,6 +192,8 @@ const opAuthor = ref<string | null>(null)
 const replies = ref<any[]>([])
 const total = ref(0)
 const allIds = ref<number[]>([])
+const replyFloorMap = ref<Record<string, number>>({})
+const lastAutoJumpKey = ref('')
 const replyNotice = ref('')
 const replyText = ref('')
 const replyTarget = ref<any | null>(null)
@@ -224,7 +228,6 @@ const parsedContent = computed(() => {
 
 const siteMaps = {
   '/api/v2ex/topic':'https://www.v2ex.com',
-  '/api/topic':'https://www.linux.do',
 }
 
 type ApiKey = keyof typeof siteMaps
@@ -300,7 +303,7 @@ let favInterval: any = null
 let faviconLink: HTMLLinkElement | null = null
 let normalFav = ''
 let alertFav = ''
-const SCROLL_KEY = 'linuxdo_floor_pos'
+const SCROLL_KEY = 'v2ex_floor_pos'
 
 // --- 计算属性 ---
 const codeParam = computed(() => props.code || '')
@@ -374,7 +377,7 @@ const removeFloor = (id: string) => {
 // --- 方法：UI 操作 ---
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 const openOriginal = () => {
-  const template = props.openOriginalTemplate || 'https://linux.do/t/topic/{id}'
+  const template = props.openOriginalTemplate || 'https://www.v2ex.com/t/{id}'
   const url = template.replace('{id}', String(rawId.value))
   window.open(url, '_blank')
 }
@@ -424,12 +427,61 @@ const jumpToFloor = (event: Event | null, floor: number | string) => {
   if (!floorId) return
 
   const el = document.getElementById('c_' + floorId)
-  if (!el) return
+  if (!el) return false
 
   window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
   el.classList.remove('flash-highlight')
   void el.offsetWidth
   el.classList.add('flash-highlight')
+  return true
+}
+
+const getQueryString = (value: unknown) => {
+  if (Array.isArray(value)) return String(value[0] || '')
+  return String(value || '')
+}
+
+const normalizeReplyTarget = (value: string) => value.replace(/^#?\/?(?:reply|r_|c_)?/i, '')
+
+const highlightAndScrollToElement = (el: HTMLElement) => {
+  window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
+  el.classList.remove('flash-highlight')
+  void el.offsetWidth
+  el.classList.add('flash-highlight')
+}
+
+const jumpToRequestedReply = async () => {
+  if (!process.client) return
+
+  const floorQuery = getQueryString(route.query.floor)
+  const replyQuery = normalizeReplyTarget(getQueryString(route.query.reply) || route.hash)
+  const floor = floorQuery || (replyQuery ? replyFloorMap.value[replyQuery] : '')
+  if (!floor && !replyQuery) return
+
+  const jumpKey = `${rawId.value}:${floorQuery}:${replyQuery}:${floor}`
+  if (lastAutoJumpKey.value === jumpKey) return
+  lastAutoJumpKey.value = jumpKey
+
+  await nextTick()
+
+  let attempts = 0
+  const tryJump = () => {
+    if (floor && jumpToFloor(null, floor)) return
+
+    if (replyQuery) {
+      const byExternalId = document.querySelector<HTMLElement>(`[data-external-reply-id="${replyQuery}"]`)
+      if (byExternalId) {
+        highlightAndScrollToElement(byExternalId)
+        return
+      }
+    }
+
+    if (attempts >= 20) return
+    attempts += 1
+    window.requestAnimationFrame(tryJump)
+  }
+
+  window.requestAnimationFrame(tryJump)
 }
 
 const focusReplyComposer = () => {
@@ -753,7 +805,13 @@ const fetchReplies = async (silent = false): Promise<boolean> => {
   let hasNewReplies = false
   
   try {
-    const res: any = await $fetch(`${props.repliesApiBase}/${rawId.value}`, { query: { _t: Date.now() } })
+    const replyPage = getQueryString(route.query.page)
+    const res: any = await $fetch(`${props.repliesApiBase}/${rawId.value}`, {
+      query: {
+        _t: Date.now(),
+        page: replyPage || undefined
+      }
+    })
     if (props.requireAuth && res?.error === 'AUTH') {
       needLogin.value = true
       return false
@@ -768,8 +826,10 @@ const fetchReplies = async (silent = false): Promise<boolean> => {
     opAuthor.value = res?.opAuthor || null
     total.value = res?.total || 0
     allIds.value = res?.allIds || []
+    replyFloorMap.value = res?.replyFloorMap || {}
     replyNotice.value = res?.replyNotice || ''
     await refreshCodeHighlighting()
+    await jumpToRequestedReply()
     
     if (silent && prevIds.length) {
       const newIds = allIds.value.filter((id) => !prevIds.includes(id))
@@ -953,11 +1013,20 @@ onUnmounted(() => {
 // --- 监听 ID 变化 ---
 watch(() => rawId.value, async (next, prev) => {
   if (!next || next === prev) return
+  lastAutoJumpKey.value = ''
   loadingTopic.value = true
   loadingReplies.value = true
   await Promise.allSettled([fetchTopic(), fetchReplies()])
   checkHistory()
 })
+
+watch(
+  () => [route.query.reply, route.query.floor, route.query.page, route.hash],
+  () => {
+    lastAutoJumpKey.value = ''
+    void fetchReplies()
+  }
+)
 </script>
 
 <style lang="scss">

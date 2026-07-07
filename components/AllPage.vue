@@ -3,20 +3,6 @@
     <LoginBox v-if="needLogin" :from="fromPath" :title="siteConfig.title" />
     <template v-else>
       <div id="mainContent">
-        <div class="toolbar">
-          <div class="site-switcher" role="tablist" aria-label="Site switcher">
-            <button
-              v-for="option in siteOptions"
-              :key="option.key"
-              :class="['site-tab', { active: activeSite === option.key }]"
-              type="button"
-              @click="switchSite(option.key)"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-        </div>
-
         <div class="fab-group">
           <button
             v-if="notificationsEnabled"
@@ -102,7 +88,7 @@
         </div>
 
         <div v-else class="notif-list">
-          <div v-for="n in notifs" :key="n.id" class="notif-item" @click="goToTopic(n.encodedId)">
+          <div v-for="n in notifs" :key="n.id || `${n.encodedId}-${n.replyId || ''}`" class="notif-item" @click="goToTopic(n)">
             <div class="notif-body">
               <div class="notif-title">{{ n.desc }}</div>
               <div class="notif-meta">
@@ -125,50 +111,20 @@
 <script setup lang="ts">
 import { lockScroll, unLockScroll } from '../utils/common'
 
-const LINUXDO_PREFIX = 'l-'
 const route = useRoute()
-const router = useRouter()
 
-const siteOptions = [
-  { key: 'v2ex', label: 'V2EX' },
-  { key: 'linuxdo', label: 'linux.do' }
-] as const
-
-const siteMap = {
-  v2ex: {
-    key: 'v2ex',
-    label: 'V2EX',
-    title: 'V2EX Reader',
-    listApi: '/api/v2ex/all',
-    notifApi: '/api/v2ex/notif',
-    notifCountApi: '/api/v2ex/notif/count',
-    hasCookieKey: 'hasV2Cookie',
-    firstListKey: 'v2ex_first_list',
-    lastCodeKey: 'v2ex_last_code',
-    topicPrefix: ''
-  },
-  linuxdo: {
-    key: 'linuxdo',
-    label: 'linux.do',
-    title: 'linux.do Reader',
-    listApi: '/api/all',
-    notifApi: '/api/notif',
-    notifCountApi: '/api/notif/count',
-    hasCookieKey: 'hasLinuxDoCookie',
-    firstListKey: 'linuxdo_first_list',
-    lastCodeKey: 'linuxdo_last_code',
-    topicPrefix: LINUXDO_PREFIX
-  }
+const siteConfig = {
+  key: 'v2ex',
+  label: 'V2EX',
+  title: 'V2EX Reader',
+  listApi: '/api/v2ex/all',
+  notifApi: '/api/v2ex/notif',
+  notifCountApi: '/api/v2ex/notif/count',
+  hasCookieKey: 'hasV2Cookie',
+  firstListKey: 'v2ex_first_list',
+  lastCodeKey: 'v2ex_last_code',
+  topicPrefix: ''
 } as const
-
-type SiteKey = keyof typeof siteMap
-
-const activeSite = computed<SiteKey>(() => {
-  if (route.path.startsWith('/linuxdo')) return 'linuxdo'
-  if (route.query.site === 'linuxdo') return 'linuxdo'
-  return 'v2ex'
-})
-const siteConfig = computed(() => siteMap[activeSite.value])
 const LIST_SCROLL_KEY = 'reader_list_scroll_positions'
 
 const needLogin = ref(false)
@@ -243,23 +199,18 @@ watch(showNotif, (val) => {
 
 const fromPath = computed(() => route.fullPath || '/v2ex')
 
-const topicLink = (code: string) => `/t/${siteConfig.value.topicPrefix}${code}`
-
-const switchSite = async (site: SiteKey) => {
-  if (site === activeSite.value) return
-  await router.replace(site === 'linuxdo' ? '/linuxdo' : '/v2ex')
-}
+const topicLink = (code: string) => `/t/${siteConfig.topicPrefix}${code}`
 
 const stopBlink = () => {
-  document.title = siteConfig.value.title
+  document.title = siteConfig.title
 }
 
 const startBlink = () => {
-  document.title = `(${unreadCount.value}) ${siteConfig.value.title}`
+  document.title = `(${unreadCount.value}) ${siteConfig.title}`
 }
 
 const checkHighlight = () => {
-  const lastCode = sessionStorage.getItem(siteConfig.value.lastCodeKey)
+  const lastCode = sessionStorage.getItem(siteConfig.lastCodeKey)
   if (!lastCode) return
   lastViewedCode.value = lastCode
   nextTick(() => {
@@ -269,13 +220,13 @@ const checkHighlight = () => {
       void el.offsetWidth
       el.classList.add('flash-highlight')
     }
-    sessionStorage.removeItem(siteConfig.value.lastCodeKey)
+    sessionStorage.removeItem(siteConfig.lastCodeKey)
   })
 }
 
 const fetchPage = async (p: number) => {
   try {
-    const res: any = await $fetch(siteConfig.value.listApi, {
+    const res: any = await $fetch(siteConfig.listApi, {
       query: { p, _t: Date.now() }
     })
     if (res?.error === 'AUTH') {
@@ -301,17 +252,12 @@ const fetchPage = async (p: number) => {
 }
 
 const formatListError = (message: string) => {
-  if (siteConfig.value.key === 'linuxdo' && /Cloudflare challenge|returned 403|Cf-Mitigated/i.test(message || '')) {
-    return showingCachedList.value
-      ? 'linux.do 触发 Cloudflare 验证，当前显示本地缓存。'
-      : 'linux.do 触发 Cloudflare 验证，当前服务端出口暂时无法读取列表。'
-  }
   return message
 }
 
 const readCachedFirstList = () => {
   try {
-    const cached = JSON.parse(localStorage.getItem(siteConfig.value.firstListKey) || '[]')
+    const cached = JSON.parse(localStorage.getItem(siteConfig.firstListKey) || '[]')
     return Array.isArray(cached) ? cached : []
   } catch {
     return []
@@ -331,7 +277,7 @@ const loadList = async () => {
   const res = await fetchPage(0)
   if (res?.items) {
     items.value = res.items
-    localStorage.setItem(siteConfig.value.firstListKey, JSON.stringify(res.items))
+    localStorage.setItem(siteConfig.firstListKey, JSON.stringify(res.items))
     loaderText.value = res.items.length ? '继续下滑加载更多' : '暂无内容'
     enableMoreTimer && clearTimeout(enableMoreTimer)
     enableMoreTimer = setTimeout(() => {
@@ -342,9 +288,6 @@ const loadList = async () => {
     if (cachedItems.length) {
       items.value = cachedItems
       showingCachedList.value = true
-      if (siteConfig.value.key === 'linuxdo') {
-        errorMessage.value = 'linux.do 触发 Cloudflare 验证，当前显示本地缓存。'
-      }
       canLoadMore.value = false
       loaderText.value = '当前显示缓存'
     } else {
@@ -394,7 +337,7 @@ const openNotif = async () => {
   stopBlink()
 
   try {
-    const res: any = await $fetch(siteConfig.value.notifApi)
+    const res: any = await $fetch(siteConfig.notifApi)
     notifs.value = res?.items || []
   } catch {
     notifs.value = []
@@ -408,7 +351,7 @@ const checkUnread_doing = ref(false)
 const checkUnread = async () => {
   try {
     checkUnread_doing.value = true
-    const res: any = await $fetch(siteConfig.value.notifCountApi)
+    const res: any = await $fetch(siteConfig.notifCountApi)
     checkUnread_doing.value = false
     if (typeof res?.count === 'number' && res.count > unreadCount.value) {
       unreadCount.value = res.count
@@ -424,13 +367,24 @@ const scrollTop = () => {
 
 const saveLastViewed = (code: string) => {
   saveListScroll()
-  sessionStorage.setItem(siteConfig.value.lastCodeKey, code)
+  sessionStorage.setItem(siteConfig.lastCodeKey, code)
 }
 
-const goToTopic = async (id: string) => {
+const goToTopic = async (notif: any) => {
   saveListScroll()
   showNotif.value = false
-  await navigateTo(topicLink(id))
+  const encodedId = typeof notif === 'string' ? notif : notif?.encodedId
+  if (!encodedId) return
+  const replyId = typeof notif === 'string' ? '' : String(notif?.replyId || '')
+  const replyPage = typeof notif === 'string' ? '' : String(notif?.replyPage || '')
+  const query: Record<string, string> = {}
+  if (replyId) query.reply = replyId
+  if (replyPage) query.page = replyPage
+  await navigateTo({
+    path: topicLink(encodedId),
+    query: Object.keys(query).length ? query : undefined,
+    hash: replyId ? `#reply${replyId}` : undefined
+  })
 }
 
 const syncSiteState = async () => {
@@ -455,7 +409,7 @@ const syncSiteState = async () => {
 
   try {
     const env: any = await $fetch('/api/env')
-    notificationsEnabled.value = Boolean(env?.[siteConfig.value.hasCookieKey])
+    notificationsEnabled.value = Boolean(env?.[siteConfig.hasCookieKey])
     void checkUnread()
   } catch {
     notificationsEnabled.value = false
@@ -464,10 +418,6 @@ const syncSiteState = async () => {
   await loadList()
   checkHighlight()
 }
-
-watch(activeSite, async () => {
-  await syncSiteState()
-})
 
 onMounted(async () => {
   await syncSiteState()
@@ -521,7 +471,7 @@ onBeforeUnmount(() => {
 })
 
 useHead(() => ({
-  title: siteConfig.value.title
+  title: siteConfig.title
 }))
 </script>
 

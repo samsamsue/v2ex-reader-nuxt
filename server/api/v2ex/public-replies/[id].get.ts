@@ -1,4 +1,4 @@
-import { defineEventHandler, getRouterParam, setResponseStatus } from 'h3'
+import { defineEventHandler, getQuery, getRouterParam, setResponseStatus } from 'h3'
 import { ENV, fetchAndParsePostFull } from '../../../utils/v2ex'
 
 export default defineEventHandler(async (event) => {
@@ -8,11 +8,14 @@ export default defineEventHandler(async (event) => {
     return { error: 'ID_INVALID' }
   }
 
-  const postData = await fetchAndParsePostFull(`https://www.v2ex.com/t/${id}`, ENV)
+  const query = getQuery(event)
+  const minPages = parseInt(String(query.page || 0), 10) || 0
+  const postData = await fetchAndParsePostFull(`https://www.v2ex.com/t/${id}`, ENV, { minPages })
   return {
     opAuthor: postData.opAuthor,
     replies: postData.replies,
     total: postData.total,
-    allIds: postData.allIds
+    allIds: postData.allIds,
+    replyFloorMap: postData.replyFloorMap
   }
 })
