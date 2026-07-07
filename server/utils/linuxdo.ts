@@ -1,8 +1,9 @@
 import crypto from 'crypto'
-import { ProxyAgent } from 'undici'
+import { Agent, ProxyAgent } from 'undici'
 import { readFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
 import MarkdownIt from 'markdown-it'
+import { getProxyConfig, redactProxyUrl } from './proxy'
 
 function loadEnvFile() {
   try {
@@ -35,12 +36,18 @@ export const ENV = {
   LINUXDO_USER_AGENT: process.env.LINUXDO_USER_AGENT || ''
 }
 
-const PROXY_URL = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || ''
+const PROXY_CONFIG = getProxyConfig('LINUXDO_PROXY_URL')
+const PROXY_URL = PROXY_CONFIG.url
 const PROXY_AGENT = PROXY_URL ? new ProxyAgent(PROXY_URL) : null
+const DIRECT_AGENT = new Agent({
+  connectTimeout: 12000,
+  headersTimeout: 12000,
+  bodyTimeout: 12000
+})
 if (!PROXY_URL) {
-  console.warn('[linux.do] No HTTP_PROXY/HTTPS_PROXY found in env; requests will go direct.')
+  console.warn('[linux.do] No LINUXDO_PROXY_URL/HTTPS_PROXY/HTTP_PROXY found in env; requests will go direct.')
 } else {
-  console.log(`[linux.do] Proxy enabled -> ${PROXY_URL}`)
+  console.log(`[linux.do] Proxy enabled from ${PROXY_CONFIG.source} -> ${redactProxyUrl(PROXY_URL)}`)
 }
 
 export const ADMIN_PASS = process.env.PASSWORD || ''
@@ -194,7 +201,7 @@ export async function safeFetch(pathOrUrl: string, env: SiteEnv, init?: RequestI
 
   const resp = await fetch(buildUrl(pathOrUrl), {
     ...init,
-    dispatcher: options.skipProxy ? undefined : PROXY_AGENT || undefined,
+    dispatcher: options.skipProxy ? DIRECT_AGENT : PROXY_AGENT || undefined,
     headers,
     signal: init?.signal || (options.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined)
   })
@@ -240,17 +247,33 @@ export function getUpstreamHint() {
   if (hasClearance) {
     return `${SITE_NAME} returned a Cloudflare challenge for the current outbound IP. cf_clearance is configured, so refresh LINUXDO_COOKIE from the same browser/user-agent and the same proxy/export IP used by this server, or set LINUXDO_USER_AGENT to match that browser.`
   }
-  return `${SITE_NAME} returned a Cloudflare challenge for the current outbound IP. Try a different HTTP_PROXY/HTTPS_PROXY, add cf_clearance from a logged-in browser to LINUXDO_COOKIE or LINUXDO_CF_CLEARANCE, or point LINUXDO_BASE_URL to a working reverse proxy.`
+  return `${SITE_NAME} returned a Cloudflare challenge for the current outbound IP. Try a different LINUXDO_PROXY_URL/HTTPS_PROXY/HTTP_PROXY, add cf_clearance from a logged-in browser to LINUXDO_COOKIE or LINUXDO_CF_CLEARANCE, or point LINUXDO_BASE_URL to a working reverse proxy.`
+}
+
+export function getLinuxDoDiagnostics(env: SiteEnv = ENV) {
+  const safeCookie = sanitizeCookie(env.LINUXDO_COOKIE || '')
+  return {
+    baseUrl: SITE_BASE,
+    hasProxy: Boolean(PROXY_URL),
+    proxySource: PROXY_CONFIG.source || '',
+    rssUsesProxy: process.env.LINUXDO_RSS_NO_PROXY !== '1',
+    rssSendsCookie: process.env.LINUXDO_RSS_WITH_COOKIE === '1' || Boolean(env.LINUXDO_CF_CLEARANCE),
+    hasLinuxDoCookie: Boolean(safeCookie),
+    hasCfClearance: /(?:^|;\s*)cf_clearance=/i.test(safeCookie) || Boolean(env.LINUXDO_CF_CLEARANCE),
+    hasLinuxDoUserAgent: Boolean(env.LINUXDO_USER_AGENT)
+  }
 }
 
 export function createUpstreamErrorPayload(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
+  const diagnostics = getLinuxDoDiagnostics()
   if (message === 'LINUXDO_FORBIDDEN_403') {
     return {
       statusCode: 502,
       body: {
         error: 'UPSTREAM_FORBIDDEN',
-        message: getUpstreamHint()
+        message: getUpstreamHint(),
+        diagnostics
       }
     }
   }
@@ -260,7 +283,8 @@ export function createUpstreamErrorPayload(error: unknown) {
       statusCode: 502,
       body: {
         error: 'UPSTREAM_RSS_DIRECT_FAILED',
-        message: `${SITE_NAME} RSS direct request failed from this server process. Your browser may be able to open RSS through a different network path, while the server cannot. RSS uses HTTP_PROXY/HTTPS_PROXY by default; set LINUXDO_RSS_NO_PROXY=1 only when the server can directly reach linux.do. (${message})`
+        message: `${SITE_NAME} RSS direct request failed from this server process. Your browser may be able to open RSS through a different network path, while the server cannot. RSS uses LINUXDO_PROXY_URL/HTTPS_PROXY/HTTP_PROXY by default; set LINUXDO_RSS_NO_PROXY=1 only when the server can directly reach linux.do. (${message})`,
+        diagnostics
       }
     }
   }
@@ -270,7 +294,8 @@ export function createUpstreamErrorPayload(error: unknown) {
       statusCode: 429,
       body: {
         error: 'UPSTREAM_RATE_LIMIT',
-        message: `${SITE_NAME} rate limited the current outbound IP.`
+        message: `${SITE_NAME} rate limited the current outbound IP.`,
+        diagnostics
       }
     }
   }
@@ -279,7 +304,8 @@ export function createUpstreamErrorPayload(error: unknown) {
     statusCode: 502,
     body: {
       error: 'UPSTREAM_ERROR',
-      message
+      message,
+      diagnostics
     }
   }
 }

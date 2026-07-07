@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { ProxyAgent } from 'undici'
 import { readFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
+import { getProxyConfig, redactProxyUrl } from './proxy'
 
 function loadEnvFile() {
   try {
@@ -31,12 +32,13 @@ export const ENV = {
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36'
 
-const PROXY_URL = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || ''
+const PROXY_CONFIG = getProxyConfig('V2EX_PROXY_URL')
+const PROXY_URL = PROXY_CONFIG.url
 const PROXY_AGENT = PROXY_URL ? new ProxyAgent(PROXY_URL) : null
 if (!PROXY_URL) {
-  console.warn('[V2EX] No HTTP_PROXY/HTTPS_PROXY found in env; requests will go direct.')
+  console.warn('[V2EX] No V2EX_PROXY_URL/HTTPS_PROXY/HTTP_PROXY found in env; requests will go direct.')
 } else {
-  console.log(`[V2EX] Proxy enabled -> ${PROXY_URL}`)
+  console.log(`[V2EX] Proxy enabled from ${PROXY_CONFIG.source} -> ${redactProxyUrl(PROXY_URL)}`)
 }
 
 export const ADMIN_PASS = process.env.PASSWORD || ''

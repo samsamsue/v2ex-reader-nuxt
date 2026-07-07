@@ -20,9 +20,13 @@ Optional Cloudflare clearance token for linux.do requests.
 
 Optional browser user-agent for linux.do requests. Use the same user-agent that produced `LINUXDO_COOKIE` / `LINUXDO_CF_CLEARANCE`.
 
+### LINUXDO_PROXY_URL
+
+Optional proxy URL used only for linux.do requests. This takes priority over `HTTPS_PROXY`, `https_proxy`, `HTTP_PROXY`, `http_proxy`, `ALL_PROXY`, and `all_proxy`.
+
 ### LINUXDO_RSS_NO_PROXY
 
-Set to `1` only when the Nuxt server can reach linux.do without `HTTP_PROXY` / `HTTPS_PROXY`. By default linux.do RSS requests use the configured proxy.
+Set to `1` only when the Nuxt server can reach linux.do without `LINUXDO_PROXY_URL` / `HTTPS_PROXY` / `HTTP_PROXY`. By default linux.do RSS requests use the configured proxy. Lowercase proxy env names such as `https_proxy` are also supported.
 
 ### LINUXDO_RSS_WITH_COOKIE
 
