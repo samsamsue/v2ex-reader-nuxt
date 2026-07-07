@@ -1,3 +1,4 @@
 <script setup lang="ts">
-await navigateTo('/v2ex', { redirectCode: 301 })
+const route = useRoute()
+await navigateTo(route.query.site === 'linuxdo' ? '/linuxdo' : '/v2ex', { redirectCode: 301 })
 </script>

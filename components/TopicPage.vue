@@ -228,6 +228,7 @@ const parsedContent = computed(() => {
 
 const siteMaps = {
   '/api/v2ex/topic':'https://www.v2ex.com',
+  '/api/topic':'https://www.linux.do',
 }
 
 type ApiKey = keyof typeof siteMaps
