@@ -8,7 +8,7 @@ import {
   buildSubtleBlocks,
   extractTopicContentHtml,
   safeFetch
-} from '../../../utils/v2ex'
+} from '../../../lib/v2ex'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)

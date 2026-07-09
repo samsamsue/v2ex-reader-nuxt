@@ -1,6 +1,6 @@
 import { defineEventHandler, readBody, setCookie, setResponseStatus } from 'h3'
-import { COOKIE_NAME as LINUXDO_COOKIE_NAME, COOKIE_VALUE as LINUXDO_COOKIE_VALUE } from '../utils/linuxdo'
-import { ADMIN_PASS, COOKIE_NAME as V2_COOKIE_NAME, COOKIE_VALUE as V2_COOKIE_VALUE } from '../utils/v2ex'
+import { COOKIE_NAME as LINUXDO_COOKIE_NAME, COOKIE_VALUE as LINUXDO_COOKIE_VALUE } from '../lib/linuxdo'
+import { ADMIN_PASS, COOKIE_NAME as V2_COOKIE_NAME, COOKIE_VALUE as V2_COOKIE_VALUE } from '../lib/v2ex'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ password?: string }>(event)

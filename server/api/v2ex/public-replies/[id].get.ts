@@ -1,5 +1,5 @@
 import { defineEventHandler, getQuery, getRouterParam, setResponseStatus } from 'h3'
-import { ENV, fetchAndParsePostFull } from '../../../utils/v2ex'
+import { ENV, fetchAndParsePostFull } from '../../../lib/v2ex'
 
 export default defineEventHandler(async (event) => {
   const id = String(getRouterParam(event, 'id') || '')

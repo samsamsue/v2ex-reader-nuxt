@@ -1,5 +1,5 @@
 import { defineEventHandler, getRouterParam, setResponseStatus } from 'h3'
-import { createRequestEnv, createUpstreamErrorPayload, fetchTopicById } from '../../utils/linuxdo'
+import { createRequestEnv, createUpstreamErrorPayload, fetchTopicById } from '../../lib/linuxdo'
 
 export default defineEventHandler(async (event) => {
   const id = String(getRouterParam(event, 'id') || '')

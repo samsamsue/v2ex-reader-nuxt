@@ -1,7 +1,7 @@
 import { defineEventHandler } from 'h3'
 import { readFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
-import { getProxyConfig, redactProxyUrl } from '../utils/proxy'
+import { getProxyConfig, redactProxyUrl } from '../lib/proxy'
 
 function loadEnvFile() {
   try {

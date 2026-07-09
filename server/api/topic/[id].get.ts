@@ -1,5 +1,5 @@
 import { defineEventHandler, getCookie, getRouterParam, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, createRequestEnv, createUpstreamErrorPayload, fetchTopicById } from '../../utils/linuxdo'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, createRequestEnv, createUpstreamErrorPayload, fetchTopicById } from '../../lib/linuxdo'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)

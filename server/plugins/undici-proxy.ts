@@ -1,6 +1,6 @@
 // server/plugins/proxy.ts
 import { ProxyAgent, setGlobalDispatcher, Agent } from 'undici'
-import { getProxyConfig, redactProxyUrl } from '../utils/proxy'
+import { getProxyConfig, redactProxyUrl } from '../lib/proxy'
 
 export default defineNitroPlugin(() => {
   const proxyConfig = getProxyConfig()

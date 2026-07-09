@@ -1,6 +1,6 @@
 import { defineEventHandler, getRouterParam, setResponseStatus } from 'h3'
 import MarkdownIt from 'markdown-it'
-import { ENV, buildSubtleBlocks, extractTopicContentHtml, safeFetch } from '../../../utils/v2ex'
+import { ENV, buildSubtleBlocks, extractTopicContentHtml, safeFetch } from '../../../lib/v2ex'
 
 export default defineEventHandler(async (event) => {
   const id = String(getRouterParam(event, 'id') || '')

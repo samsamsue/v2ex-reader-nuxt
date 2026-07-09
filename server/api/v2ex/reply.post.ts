@@ -1,5 +1,5 @@
 import { defineEventHandler, getCookie, readBody, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, V2exReplyError, createTopicReply } from '../../utils/v2ex'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, V2exReplyError, createTopicReply } from '../../lib/v2ex'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)

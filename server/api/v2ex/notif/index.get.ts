@@ -1,5 +1,5 @@
 import { defineEventHandler, getCookie, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, encodeId, safeFetch } from '../../../utils/v2ex'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, encodeId, safeFetch } from '../../../lib/v2ex'
 
 function stripHtml(value: string) {
   return value

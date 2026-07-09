@@ -31,15 +31,6 @@ export default defineNuxtConfig({
       }
     ]
   },
-  nitro: {
-    // preset: process.env.VERCEL ? 'vercel' : 'node-server',
-    imports: {
-      exclude: [
-        /server[\\/]+utils[\\/]+linuxdo/,
-        /server[\\/]+utils[\\/]+v2ex/
-      ]
-    }
-  },
   runtimeConfig: {
     LINUXDO_COOKIE: process.env.LINUXDO_COOKIE || process.env.V2_COOKIE || '',
     PASSWORD: process.env.PASSWORD || '',

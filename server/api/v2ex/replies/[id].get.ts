@@ -1,5 +1,5 @@
 import { defineEventHandler, getCookie, getQuery, getRouterParam, setResponseStatus } from 'h3'
-import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, fetchAndParsePostFull } from '../../../utils/v2ex'
+import { ADMIN_PASS, COOKIE_NAME, COOKIE_VALUE, ENV, fetchAndParsePostFull } from '../../../lib/v2ex'
 
 export default defineEventHandler(async (event) => {
   const hasPass = Boolean(ADMIN_PASS)
