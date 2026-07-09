@@ -930,8 +930,8 @@ const fetchReplies = async (silent = false, minPages?: number, resetLimit = true
     const prevIds = allIds.value.slice()
     replies.value = enhanceReplyTreeHtml(res?.replies || [])
     opAuthor.value = res?.opAuthor || null
-    total.value = res?.total || 0
     allIds.value = res?.allIds || []
+    total.value = Math.max(Number(res?.total || 0), allIds.value.length)
     replyFloorMap.value = res?.replyFloorMap || {}
     replyNotice.value = res?.replyNotice || ''
     loadedReplyPages.value = res?.loadedPages || 1

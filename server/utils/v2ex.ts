@@ -202,12 +202,53 @@ function extractLeadingReplyReferenceSafe(contentHtml: string) {
 
 function extractOfficialReplyTotal(html: string) {
   const text = normalizeHtmlText(html)
+  const structuredReplyTotal = extractJsonLdReplyTotal(html)
+  if (structuredReplyTotal) return structuredReplyTotal
+
+  const visibleCountMatch =
+    text.match(/\b(\d+)\s+replies\b/i) ||
+    text.match(/(\d+)\s*(?:\u6761)?\u56de\u590d\b/i) ||
+    html.match(/\b(\d+)(?:\s|&nbsp;|&#160;|&ensp;|&emsp;)+replies\b/i) ||
+    html.match(/(\d+)(?:\s|&nbsp;|&#160;|&ensp;|&emsp;)*(?:\u6761)?\u56de\u590d\b/i)
+  if (visibleCountMatch) return parseInt(visibleCountMatch[1], 10)
   const match =
     text.match(/\b(\d+)\s+replies\b/i) ||
     text.match(/(\d+)\s+回复\b/i) ||
     html.match(/\b(\d+)(?:\s|&nbsp;|&#160;|&ensp;|&emsp;)+replies\b/i) ||
     html.match(/(\d+)(?:\s|&nbsp;|&#160;|&ensp;|&emsp;)+回复\b/i)
   return match ? parseInt(match[1], 10) : 0
+}
+
+function extractJsonLdReplyTotal(html: string) {
+  const scripts = html.matchAll(
+    /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  )
+  let total = 0
+
+  const visit = (value: unknown) => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+
+    const record = value as Record<string, unknown>
+    const interactionType = String(record.interactionType || '')
+    const interactionCount = Number(record.userInteractionCount || 0)
+    if (interactionType === 'https://schema.org/ReplyAction' && Number.isFinite(interactionCount)) {
+      total = Math.max(total, interactionCount)
+    }
+
+    Object.values(record).forEach(visit)
+  }
+
+  for (const script of scripts) {
+    try {
+      visit(JSON.parse(script[1]))
+    } catch {}
+  }
+
+  return total
 }
 
 export async function fetchAndParsePostFull(targetUrl: string, env: V2Env, options: { minPages?: number } = {}) {
