@@ -22,6 +22,9 @@ export default defineEventHandler(async (event) => {
     opAuthor: postData.opAuthor,
     replies: postData.replies,
     total: postData.total,
+    loadedPages: postData.loadedPages,
+    maxPages: postData.maxPages,
+    hasMorePages: postData.hasMorePages,
     allIds: postData.allIds,
     replyFloorMap: postData.replyFloorMap
   }

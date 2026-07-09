@@ -15,6 +15,22 @@ export default defineNuxtConfig({
   experimental: {
     appManifest: false
   },
+  vite: {
+    plugins: [
+      {
+        name: 'windows-nuxt-absolute-entry-rewrite',
+        configureServer(server) {
+          if (process.platform !== 'win32') return
+          server.middlewares.use((req, _res, next) => {
+            if (req.url?.startsWith('/_nuxt/') && /^\/_nuxt\/[A-Za-z]:\//.test(req.url)) {
+              req.url = req.url.replace(/^\/_nuxt\//, '/@fs/')
+            }
+            next()
+          })
+        }
+      }
+    ]
+  },
   nitro: {
     // preset: process.env.VERCEL ? 'vercel' : 'node-server',
     imports: {

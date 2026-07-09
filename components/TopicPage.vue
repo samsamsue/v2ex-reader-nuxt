@@ -9,7 +9,8 @@
         </div>
         <div v-if="showHistoryPrompt && historyFloor && replies.length" id="historyPrompt">
           <span>上次看到 <b>#{{ historyFloor }}</b> 楼</span>
-          <button @click.stop="jumpToHistory">去这里</button>
+          <button :disabled="jumpingToHistory" @click.stop="jumpToHistory">去这里</button>
+          <svg v-if="jumpingToHistory" class="history-loading loading-rotate" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
           <span class="close" @click.stop="dismissHistory">×</span>
         </div>
 
@@ -115,12 +116,16 @@
           <div v-if="replyNotice" class="reply-notice">{{ replyNotice }}</div>
           <div id="comments">
             <CommentTree
-              :nodes="replies"
+              :nodes="visibleReplies"
               :opAuthor="opAuthor"
               :reply-enabled="canReply"
               :external-floor-url="externalFloorUrl"
               @reply="startReply"
             />
+            <div v-if="loadingMoreReplies" class="comments-loading">
+              <svg class="loading-rotate" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+              <span>加载中</span>
+            </div>
           </div>
         </div>
         </div>
@@ -180,6 +185,8 @@ const route = useRoute()
 
 useHead({ title: props.pageTitle })
 
+const OFFICIAL_REPLY_PAGE_SIZE = 100
+
 // --- 响应式状态 ---
 const needLogin = ref(false)
 const loadingTopic = ref(true)
@@ -193,6 +200,10 @@ const replies = ref<any[]>([])
 const total = ref(0)
 const allIds = ref<number[]>([])
 const replyFloorMap = ref<Record<string, number>>({})
+const visibleReplyLimit = ref(OFFICIAL_REPLY_PAGE_SIZE)
+const loadedReplyPages = ref(0)
+const hasMoreReplyPages = ref(false)
+const loadingMoreReplies = ref(false)
 const lastAutoJumpKey = ref('')
 const replyNotice = ref('')
 const replyText = ref('')
@@ -211,6 +222,7 @@ const imageUploadStatus = ref('')
 const notifyVisible = ref(false)
 const historyFloor = ref<string | null>(null)
 const showHistoryPrompt = ref(false)
+const jumpingToHistory = ref(false)
 const qrVisible = ref(false)
 const qrDataUrl = ref<string>('')
 const isModeCode = ref(false) 
@@ -324,6 +336,7 @@ const shareUrl = computed(() => {
 })
 const topicReady = computed(() => !!topicContent.value || !loadingTopic.value)
 const repliesReady = computed(() => replies.value.length > 0 || total.value > 0 || !loadingReplies.value)
+const visibleReplies = computed(() => filterReplyTreeByLimit(replies.value, visibleReplyLimit.value))
 const canReply = computed(() => Boolean(props.replyApi))
 const replyTargetPreview = computed(() => {
   if (!replyTarget.value?.replyHtml) return ''
@@ -408,14 +421,22 @@ const dismissHistory = () => {
   showHistoryPrompt.value = false
 }
 
-const jumpToHistory = () => {
+const jumpToHistory = async () => {
   if (!historyFloor.value) return
-  const el = document.getElementById('c_' + historyFloor.value)
-  if (el) {
-    window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
-    el.classList.add('flash-highlight')
+  jumpingToHistory.value = true
+  try {
+    await ensureRepliesLoadedForFloor(historyFloor.value)
+    const el = document.getElementById('c_' + historyFloor.value)
+    if (el) {
+      window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
+      el.classList.remove('flash-highlight')
+      void el.offsetWidth
+      el.classList.add('flash-highlight')
+    }
+    dismissHistory()
+  } finally {
+    jumpingToHistory.value = false
   }
-  dismissHistory()
 }
 
 const jumpToFloor = (event: Event | null, floor: number | string) => {
@@ -451,6 +472,85 @@ const highlightAndScrollToElement = (el: HTMLElement) => {
   el.classList.add('flash-highlight')
 }
 
+const filterReplyTreeByLimit = (nodes: any[], limit: number): any[] => {
+  return nodes.reduce((acc: any[], node: any) => {
+    if (!node || Number(node.id) > limit) return acc
+    acc.push({
+      ...node,
+      children: filterReplyTreeByLimit(node.children || [], limit)
+    })
+    return acc
+  }, [])
+}
+
+const resetVisibleReplies = () => {
+  visibleReplyLimit.value = OFFICIAL_REPLY_PAGE_SIZE
+}
+
+const ensureReplyVisible = (floor: number | string) => {
+  const target = Number(floor)
+  if (!Number.isFinite(target)) return
+  visibleReplyLimit.value = Math.max(
+    visibleReplyLimit.value,
+    Math.ceil(target / OFFICIAL_REPLY_PAGE_SIZE) * OFFICIAL_REPLY_PAGE_SIZE
+  )
+}
+
+const getReplyPageForFloor = (floor: number | string) => {
+  const target = Number(floor)
+  if (!Number.isFinite(target) || target <= 0) return 1
+  return Math.ceil(target / OFFICIAL_REPLY_PAGE_SIZE)
+}
+
+const ensureRepliesLoadedForFloor = async (floor: number | string) => {
+  const targetPage = getReplyPageForFloor(floor)
+  ensureReplyVisible(floor)
+
+  if (targetPage <= loadedReplyPages.value || !hasMoreReplyPages.value) {
+    await nextTick()
+    await refreshCodeHighlighting()
+    return
+  }
+
+  loadingMoreReplies.value = true
+  try {
+    await fetchReplies(true, targetPage, false, false)
+    ensureReplyVisible(floor)
+    await nextTick()
+    await refreshCodeHighlighting()
+  } finally {
+    loadingMoreReplies.value = false
+  }
+}
+
+const loadMoreVisibleReplies = async () => {
+  if (loadingMoreReplies.value || loadingReplies.value) return
+
+  if (visibleReplyLimit.value < allIds.value.length) {
+    loadingMoreReplies.value = true
+    try {
+      visibleReplyLimit.value = Math.min(visibleReplyLimit.value + OFFICIAL_REPLY_PAGE_SIZE, allIds.value.length)
+      await nextTick()
+      await refreshCodeHighlighting()
+    } finally {
+      loadingMoreReplies.value = false
+    }
+    return
+  }
+
+  if (!hasMoreReplyPages.value) return
+
+  loadingMoreReplies.value = true
+  try {
+    await fetchReplies(true, Math.max(loadedReplyPages.value + 1, 1), false)
+    visibleReplyLimit.value = Math.min(visibleReplyLimit.value + OFFICIAL_REPLY_PAGE_SIZE, allIds.value.length)
+    await nextTick()
+    await refreshCodeHighlighting()
+  } finally {
+    loadingMoreReplies.value = false
+  }
+}
+
 const jumpToRequestedFloor = async () => {
   if (!process.client) return
 
@@ -462,6 +562,8 @@ const jumpToRequestedFloor = async () => {
   const jumpKey = `${rawId.value}:${floorQuery}:${replyQuery}:${floor}`
   if (lastAutoJumpKey.value === jumpKey) return
   lastAutoJumpKey.value = jumpKey
+
+  if (floor) await ensureRepliesLoadedForFloor(floor)
 
   await nextTick()
 
@@ -803,16 +905,17 @@ const fetchTopic = async () => {
   }
 }
 
-const fetchReplies = async (silent = false): Promise<boolean> => {
+const fetchReplies = async (silent = false, minPages?: number, resetLimit = true, autoJump = true): Promise<boolean> => {
   if (!silent) loadingReplies.value = true
   let hasNewReplies = false
   
   try {
     const replyPage = getQueryString(route.query.page)
+    const pageToLoad = minPages || parseInt(replyPage || '0', 10) || undefined
     const res: any = await $fetch(`${props.repliesApiBase}/${rawId.value}`, {
       query: {
         _t: Date.now(),
-        page: replyPage || undefined
+        page: pageToLoad
       }
     })
     if (props.requireAuth && res?.error === 'AUTH') {
@@ -831,8 +934,11 @@ const fetchReplies = async (silent = false): Promise<boolean> => {
     allIds.value = res?.allIds || []
     replyFloorMap.value = res?.replyFloorMap || {}
     replyNotice.value = res?.replyNotice || ''
+    loadedReplyPages.value = res?.loadedPages || 1
+    hasMoreReplyPages.value = Boolean(res?.hasMorePages)
+    if (resetLimit) resetVisibleReplies()
     await refreshCodeHighlighting()
-    await jumpToRequestedFloor()
+    if (autoJump) await jumpToRequestedFloor()
     
     if (silent && prevIds.length) {
       const newIds = allIds.value.filter((id) => !prevIds.includes(id))
@@ -901,6 +1007,9 @@ let scrollTimer: any = null
 
 const listenScroll = () => {
     if (isModeCode.value) return
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 600) {
+      void loadMoreVisibleReplies()
+    }
     
     // 【修复核心】：如果历史提示还在显示，说明用户还没决定是否跳转，此时屏蔽清除或覆盖逻辑
     if (showHistoryPrompt.value) return 
@@ -1591,6 +1700,17 @@ body {
   font-weight: 600;
 }
 
+#historyPrompt button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+#historyPrompt .history-loading {
+  width: 16px;
+  height: 16px;
+  color: var(--meta);
+}
+
 #historyPrompt .close {
   color: var(--meta);
   font-size: 18px;
@@ -1645,6 +1765,21 @@ body {
   border-bottom: 1.5px solid var(--text);
   display: inline-block;
   padding-bottom: 3px;
+}
+
+.comments-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--meta);
+  font-size: 0.92rem;
+  padding: 18px 0 6px;
+}
+
+.comments-loading svg {
+  width: 18px;
+  height: 18px;
 }
 
 .reply-notice {

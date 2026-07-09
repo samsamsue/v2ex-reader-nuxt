@@ -200,6 +200,16 @@ function extractLeadingReplyReferenceSafe(contentHtml: string) {
   }
 }
 
+function extractOfficialReplyTotal(html: string) {
+  const text = normalizeHtmlText(html)
+  const match =
+    text.match(/\b(\d+)\s+replies\b/i) ||
+    text.match(/(\d+)\s+回复\b/i) ||
+    html.match(/\b(\d+)(?:\s|&nbsp;|&#160;|&ensp;|&emsp;)+replies\b/i) ||
+    html.match(/(\d+)(?:\s|&nbsp;|&#160;|&ensp;|&emsp;)+回复\b/i)
+  return match ? parseInt(match[1], 10) : 0
+}
+
 export async function fetchAndParsePostFull(targetUrl: string, env: V2Env, options: { minPages?: number } = {}) {
   const firstResp = await safeFetch(targetUrl, env)
   const firstHtml = await firstResp.text()
@@ -216,14 +226,16 @@ export async function fetchAndParsePostFull(targetUrl: string, env: V2Env, optio
 
   const opAuthorMatch = firstHtml.match(/<small class="gray"><a href="\/member\/.*?">(.*?)<\/a>/)
   const opAuthor = opAuthorMatch ? opAuthorMatch[1] : null
+  const officialReplyTotal = extractOfficialReplyTotal(firstHtml)
 
   let pagesHtml = [firstHtml]
-  const pageMatches = firstHtml.match(/href="\/t\/\d+\?p=(\d+)"/g)
-  if (pageMatches) {
-    const maxPage = Math.max(...pageMatches.map((m) => parseInt(m.match(/p=(\d+)/)![1], 10)))
+  let maxPage = 1
+  const pageMatches = Array.from(firstHtml.matchAll(/[?&]p=(\d+)/g), (match) => parseInt(match[1], 10))
+  if (pageMatches.length) {
+    maxPage = Math.max(...pageMatches)
     if (maxPage > 1) {
       const fetchers = [] as Promise<string>[]
-      const pagesToFetch = Math.max(3, options.minPages || 0)
+      const pagesToFetch = Math.max(1, options.minPages || 1)
       for (let i = 2; i <= Math.min(maxPage, pagesToFetch); i++) {
         fetchers.push(safeFetch(`${targetUrl}?p=${i}`, env).then((r) => r.text()))
       }
@@ -310,7 +322,10 @@ export async function fetchAndParsePostFull(targetUrl: string, env: V2Env, optio
     contentHtml: content,
     opAuthor,
     replies: tree,
-    total: allReplies.length,
+    total: officialReplyTotal || allReplies.length,
+    loadedPages: pagesHtml.length,
+    maxPages: maxPage,
+    hasMorePages: pagesHtml.length < maxPage,
     allIds: allReplies.map((reply) => reply.id),
     replyFloorMap: Object.fromEntries(
       allReplies

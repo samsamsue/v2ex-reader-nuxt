@@ -10,6 +10,16 @@ function joinRelativeURL(...parts) {
     .replace(/^(https?:)\/([^/])/, '$1//$2')
 }
 
+function isWindowsAbsolutePath(value) {
+  return /^[A-Za-z]:[\\/]/.test(value)
+}
+
+function normalizeViteModulePath(value) {
+  return isWindowsAbsolutePath(value)
+    ? `/@fs/${value.replace(/\\/g, '/')}`
+    : value
+}
+
 export function baseURL() {
   return process.env.NUXT_APP_BASE_URL || '/'
 }
@@ -19,6 +29,12 @@ export function buildAssetsDir() {
 }
 
 export function buildAssetsURL(...path) {
+  for (const part of path) {
+    const viteModulePath = normalizeViteModulePath(String(part || ''))
+    if (viteModulePath.startsWith('/@fs/')) {
+      return viteModulePath
+    }
+  }
   return joinRelativeURL(publicAssetsURL(), buildAssetsDir(), ...path)
 }
 
