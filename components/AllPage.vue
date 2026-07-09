@@ -192,6 +192,8 @@ let observer: IntersectionObserver | null = null
 let unreadTimer: ReturnType<typeof setInterval> | null = null
 let enableMoreTimer: ReturnType<typeof setTimeout> | null = null
 let pageShowHandler: ((event: PageTransitionEvent) => void) | null = null
+let normalFav = ''
+let faviconLink: HTMLLinkElement | null = null
 
 const readScrollPositions = () => {
   if (!process.client) return {} as Record<string, number>
@@ -250,8 +252,45 @@ const switchSite = async (site: SiteKey) => {
   await router.replace(site === 'linuxdo' ? '/linuxdo' : '/v2ex')
 }
 
+const drawDefaultFavicon = () => {
+  if (normalFav || !process.client) return
+  const c = document.createElement('canvas')
+  c.width = 32
+  c.height = 32
+  const x = c.getContext('2d')
+  if (!x) return
+  x.fillStyle = '#1d2129'
+  x.fillRect(0, 0, 32, 32)
+  x.fillStyle = '#fff'
+  x.font = 'bold 22px sans-serif'
+  x.fillText('V', 8, 24)
+  normalFav = c.toDataURL()
+}
+
+const getFaviconLink = () => {
+  if (faviconLink && document.head.contains(faviconLink)) return faviconLink
+
+  faviconLink = document.querySelector<HTMLLinkElement>("link[rel*='icon']")
+  if (faviconLink) return faviconLink
+
+  faviconLink = document.createElement('link')
+  faviconLink.type = 'image/x-icon'
+  faviconLink.rel = 'shortcut icon'
+  document.head.appendChild(faviconLink)
+  return faviconLink
+}
+
+const restoreDefaultFavicon = () => {
+  if (!process.client) return
+  drawDefaultFavicon()
+  if (!normalFav) return
+  const link = getFaviconLink()
+  if (link.href !== normalFav) link.href = normalFav
+}
+
 const stopBlink = () => {
   document.title = siteConfig.value.title
+  restoreDefaultFavicon()
 }
 
 const startBlink = () => {
@@ -508,6 +547,7 @@ onMounted(async () => {
 
 onActivated(() => {
   if (!process.client) return
+  stopBlink()
   void restoreListScroll()
   checkHighlight()
 })
