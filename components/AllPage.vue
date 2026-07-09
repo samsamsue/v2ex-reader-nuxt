@@ -19,6 +19,19 @@
 
         <div class="fab-group">
           <button
+            class="fab"
+            type="button"
+            title="浏览历史"
+            @click="openHistory"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+          </button>
+
+          <button
             v-if="notificationsEnabled"
             class="fab"
             type="button"
@@ -72,7 +85,7 @@
             :id="`item_${item.code}`"
             :class="['item', { 'flash-highlight': lastViewedCode === item.code }]"
           >
-            <NuxtLink :to="topicLink(item.code)" @click="saveLastViewed(item.code)">
+            <NuxtLink :to="topicLink(item.code)" @click="saveLastViewed(item)">
               {{ item.title }}
             </NuxtLink>
             <div class="meta">@{{ item.author }} · {{ item.time }} · {{ item.replies }} 回复</div>
@@ -111,6 +124,40 @@
               <div v-if="n.payload" class="notif-payload" v-html="n.payload"></div>
             </div>
             <div class="notif-arrow">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="historyOverlay" :class="{ open: showHistory }" @click="showHistory = false"></div>
+      <div id="historyModal" :class="{ open: showHistory }">
+        <div class="history-header">
+          <h3>浏览历史</h3>
+          <button
+            v-if="historyItems.length"
+            class="history-clear-btn"
+            type="button"
+            @click="clearHistory"
+          >
+            清空
+          </button>
+          <button class="close-btn" type="button" aria-label="关闭" @click="showHistory = false">&times;</button>
+        </div>
+
+        <div v-if="historyItems.length === 0" class="history-state">
+          <p>暂无浏览历史</p>
+        </div>
+
+        <div v-else class="history-list">
+          <div v-for="item in historyItems" :key="`${item.site}-${item.code}`" class="history-item" @click="goToHistoryItem(item)">
+            <div class="history-body">
+              <div class="history-title">{{ item.title }}</div>
+              <div class="history-meta">{{ item.siteLabel }} · {{ formatHistoryTime(item.visitedAt) }}</div>
+            </div>
+            <div class="history-arrow">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="m9 18 6-6-6-6" />
               </svg>
@@ -170,6 +217,8 @@ const activeSite = computed<SiteKey>(() => {
 })
 const siteConfig = computed(() => siteMap[activeSite.value])
 const LIST_SCROLL_KEY = 'reader_list_scroll_positions'
+const HISTORY_KEY = 'reader_browse_history'
+const HISTORY_LIMIT = 30
 
 const needLogin = ref(false)
 const items = ref<any[]>([])
@@ -177,8 +226,10 @@ const loading = ref(false)
 const errorMessage = ref('')
 const showingCachedList = ref(false)
 const showNotif = ref(false)
+const showHistory = ref(false)
 const unreadCount = ref(0)
 const notifs = ref<any[]>([])
+const historyItems = ref<HistoryItem[]>([])
 const notifLoading = ref(false)
 const notificationsEnabled = ref(false)
 const currentPage = ref(0)
@@ -194,6 +245,15 @@ let enableMoreTimer: ReturnType<typeof setTimeout> | null = null
 let pageShowHandler: ((event: PageTransitionEvent) => void) | null = null
 let normalFav = ''
 let faviconLink: HTMLLinkElement | null = null
+
+type HistoryItem = {
+  code: string
+  title: string
+  site: SiteKey
+  siteLabel: string
+  path: string
+  visitedAt: number
+}
 
 const readScrollPositions = () => {
   if (!process.client) return {} as Record<string, number>
@@ -243,6 +303,12 @@ watch(showNotif, (val) => {
   else unLockScroll('notif')
 })
 
+watch(showHistory, (val) => {
+  if (!process.client) return
+  if (val) lockScroll('history')
+  else unLockScroll('history')
+})
+
 const fromPath = computed(() => route.fullPath || '/v2ex')
 
 const topicLink = (code: string) => `/t/${siteConfig.value.topicPrefix}${code}`
@@ -250,6 +316,57 @@ const topicLink = (code: string) => `/t/${siteConfig.value.topicPrefix}${code}`
 const switchSite = async (site: SiteKey) => {
   if (site === activeSite.value) return
   await router.replace(site === 'linuxdo' ? '/linuxdo' : '/v2ex')
+}
+
+const readHistory = (): HistoryItem[] => {
+  if (!process.client) return []
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((item) => item && typeof item.code === 'string' && typeof item.title === 'string')
+      .slice(0, HISTORY_LIMIT)
+  } catch {
+    return []
+  }
+}
+
+const writeHistory = (itemsToWrite: HistoryItem[]) => {
+  if (!process.client) return
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(itemsToWrite.slice(0, HISTORY_LIMIT)))
+}
+
+const recordHistory = (item: any) => {
+  if (!process.client || !item?.code) return
+  const historyItem: HistoryItem = {
+    code: item.code,
+    title: String(item.title || '无标题'),
+    site: siteConfig.value.key,
+    siteLabel: siteConfig.value.label,
+    path: topicLink(item.code),
+    visitedAt: Date.now()
+  }
+  const rest = readHistory().filter((entry) => !(entry.site === historyItem.site && entry.code === historyItem.code))
+  writeHistory([historyItem, ...rest])
+}
+
+const openHistory = () => {
+  historyItems.value = readHistory()
+  showHistory.value = true
+}
+
+const clearHistory = () => {
+  writeHistory([])
+  historyItems.value = []
+}
+
+const formatHistoryTime = (value: number) => {
+  if (!value) return ''
+  const diff = Date.now() - value
+  if (diff < 60_000) return '刚刚'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`
+  return new Date(value).toLocaleDateString()
 }
 
 const drawDefaultFavicon = () => {
@@ -461,9 +578,18 @@ const scrollTop = () => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const saveLastViewed = (code: string) => {
+const saveLastViewed = (item: any) => {
   saveListScroll()
-  sessionStorage.setItem(siteConfig.value.lastCodeKey, code)
+  sessionStorage.setItem(siteConfig.value.lastCodeKey, item.code)
+  recordHistory(item)
+}
+
+const goToHistoryItem = async (item: HistoryItem) => {
+  saveListScroll()
+  showHistory.value = false
+  const targetConfig = siteMap[item.site]
+  if (targetConfig) sessionStorage.setItem(targetConfig.lastCodeKey, item.code)
+  await navigateTo(item.path)
 }
 
 const goToTopic = async (notif: any) => {
@@ -489,8 +615,10 @@ const syncSiteState = async () => {
 
   needLogin.value = false
   showNotif.value = false
+  showHistory.value = false
   unreadCount.value = 0
   notifs.value = []
+  historyItems.value = []
   notifLoading.value = false
   errorMessage.value = ''
   stopBlink()
@@ -569,6 +697,7 @@ onBeforeUnmount(() => {
   if (enableMoreTimer) clearTimeout(enableMoreTimer)
 
   unLockScroll('notif')
+  unLockScroll('history')
   stopBlink()
 })
 
@@ -795,6 +924,22 @@ useHead(() => ({
   pointer-events: auto;
 }
 
+#historyOverlay {
+  position: fixed;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+  transition: opacity 0.3s;
+  z-index: 1999;
+}
+
+#historyOverlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 #notifModal {
   position: fixed;
   top: 0;
@@ -815,6 +960,26 @@ useHead(() => ({
   right: 0;
 }
 
+#historyModal {
+  position: fixed;
+  top: 0;
+  right: -100%;
+  width: 100%;
+  max-width: 420px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
+  transition: right 0.35s ease;
+  z-index: 2000;
+}
+
+#historyModal.open {
+  right: 0;
+}
+
 .notif-header {
   padding: 16px 20px;
   display: flex;
@@ -823,7 +988,40 @@ useHead(() => ({
   border-bottom: 1px solid var(--border);
 }
 
+.history-header {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-header h3 {
+  flex: 1;
+  margin: 0;
+}
+
+.history-clear-btn {
+  border: none;
+  background: transparent;
+  color: var(--meta);
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+
+.history-clear-btn:hover {
+  color: var(--text);
+}
+
 .notif-state {
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--meta);
+}
+
+.history-state {
   height: 200px;
   display: flex;
   align-items: center;
@@ -836,7 +1034,20 @@ useHead(() => ({
   overflow-y: auto;
 }
 
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
 .notif-item {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.history-item {
   display: flex;
   gap: 12px;
   padding: 16px 20px;
@@ -848,7 +1059,16 @@ useHead(() => ({
   background: var(--input-bg);
 }
 
+.history-item:hover {
+  background: var(--input-bg);
+}
+
 .notif-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-body {
   flex: 1;
   min-width: 0;
 }
@@ -859,7 +1079,19 @@ useHead(() => ({
   font-weight: 500;
 }
 
+.history-title {
+  line-height: 1.5;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
 .notif-meta {
+  margin-top: 4px;
+  color: var(--meta);
+  font-size: 0.8rem;
+}
+
+.history-meta {
   margin-top: 4px;
   color: var(--meta);
   font-size: 0.8rem;
@@ -885,6 +1117,12 @@ useHead(() => ({
 }
 
 .notif-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--meta);
+}
+
+.history-arrow {
   display: flex;
   align-items: center;
   color: var(--meta);

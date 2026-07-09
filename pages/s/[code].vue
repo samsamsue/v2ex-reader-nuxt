@@ -12,6 +12,7 @@
     :page-title="pageTitle"
     :login-title="pageTitle"
     :compact-title="false"
+    :record-history="false"
   />
 </template>
 

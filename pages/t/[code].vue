@@ -20,6 +20,9 @@
     :reply-api="replyApi"
     :login-title="pageTitle"
     :compact-title="true"
+    :history-site="historySite"
+    :history-site-label="historySiteLabel"
+    :history-path="historyPath"
   />
 </template>
 
@@ -45,4 +48,7 @@ const externalFloorTemplate = computed(() => isLinuxdo.value ? 'https://linux.do
 const replyApi = computed(() => isLinuxdo.value ? '/api/reply' : '/api/v2ex/reply')
 const salt = computed(() => isLinuxdo.value ? LINUXDO_SALT : V2EX_SALT)
 const shareSalt = computed(() => isLinuxdo.value ? LINUXDO_SHARE_SALT : V2EX_SHARE_SALT)
+const historySite = computed(() => isLinuxdo.value ? 'linuxdo' : 'v2ex')
+const historySiteLabel = computed(() => isLinuxdo.value ? 'linux.do' : 'V2EX')
+const historyPath = computed(() => `/t/${rawCode.value}`)
 </script>

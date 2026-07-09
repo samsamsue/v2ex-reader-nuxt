@@ -162,6 +162,10 @@ const props = withDefaults(defineProps<{
   externalFloorTemplate?: string
   replyApi?: string
   loginTitle?: string
+  historySite?: 'v2ex' | 'linuxdo'
+  historySiteLabel?: string
+  historyPath?: string
+  recordHistory?: boolean
 }>(), {
   requireAuth: false,
   fromPath: '/v2ex',
@@ -178,7 +182,11 @@ const props = withDefaults(defineProps<{
   openOriginalTemplate: 'https://www.v2ex.com/t/{id}',
   externalFloorTemplate: '',
   replyApi: '',
-  loginTitle: 'V2EX Reader'
+  loginTitle: 'V2EX Reader',
+  historySite: 'v2ex',
+  historySiteLabel: 'V2EX',
+  historyPath: '',
+  recordHistory: true
 })
 
 const route = useRoute()
@@ -317,6 +325,8 @@ let faviconLink: HTMLLinkElement | null = null
 let normalFav = ''
 let alertFav = ''
 const SCROLL_KEY = 'v2ex_floor_pos'
+const HISTORY_KEY = 'reader_browse_history'
+const HISTORY_LIMIT = 30
 
 // --- 计算属性 ---
 const codeParam = computed(() => props.code || '')
@@ -359,6 +369,26 @@ const externalFloorUrl = computed(() => {
     .replace('{id}', String(rawId.value))
     .replace('{floor}', '{floor}')
 })
+
+const historyItemPath = computed(() => props.historyPath || `/t/${codeParam.value}`)
+
+const recordBrowseHistory = (title: string) => {
+  if (!props.recordHistory || !process.client || !codeParam.value || !title) return
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+    const list = Array.isArray(parsed) ? parsed : []
+    const nextItem = {
+      code: codeParam.value,
+      title,
+      site: props.historySite,
+      siteLabel: props.historySiteLabel,
+      path: historyItemPath.value,
+      visitedAt: Date.now()
+    }
+    const rest = list.filter((item: any) => !(item?.site === nextItem.site && item?.code === nextItem.code))
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([nextItem, ...rest].slice(0, HISTORY_LIMIT)))
+  } catch {}
+}
 
 // --- 方法：楼层记忆功能 ---
 const saveFloor = (id: string, floorId: string) => {
@@ -884,6 +914,7 @@ const fetchTopic = async () => {
     // 这里只处理 200 OK 的情况
     if (res?.title) {
       topicTitle.value = res.title
+      recordBrowseHistory(res.title)
 	  if(!props.showQr) document.title = `${res.title}`
       topicContent.value = enhanceRichHtml(res.content || res.contentHtml || '', { enableFloorLinks: true })
 	  loaded.value = true
