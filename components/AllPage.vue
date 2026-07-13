@@ -32,6 +32,17 @@
           </button>
 
           <button
+            class="fab"
+            type="button"
+            title="关注列表"
+            @click="openFollow"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
+
+          <button
             v-if="notificationsEnabled"
             class="fab"
             type="button"
@@ -87,6 +98,7 @@
           >
             <NuxtLink :to="topicLink(item.code)" @click="saveLastViewed(item)">
               {{ item.title }}
+              <span v-if="followUnreadForItem(item) > 0" class="item-follow-badge">+{{ followUnreadForItem(item) }}</span>
             </NuxtLink>
             <div class="meta">@{{ item.author }} · {{ item.time }} · {{ item.replies }} 回复</div>
           </div>
@@ -147,16 +159,62 @@
           <button class="close-btn" type="button" aria-label="关闭" @click="showHistory = false">&times;</button>
         </div>
 
+        <div v-if="historyItems.length" class="drawer-filter">
+          <input v-model="historyFilter" type="search" placeholder="筛选历史" />
+        </div>
+
         <div v-if="historyItems.length === 0" class="history-state">
           <p>暂无浏览历史</p>
         </div>
 
+        <div v-else-if="filteredHistoryItems.length === 0" class="history-state">
+          <p>没有匹配的历史</p>
+        </div>
+
         <div v-else class="history-list">
-          <div v-for="item in historyItems" :key="`${item.site}-${item.code}`" class="history-item" @click="goToHistoryItem(item)">
+          <div v-for="item in filteredHistoryItems" :key="`${item.site}-${item.code}`" class="history-item" @click="goToHistoryItem(item)">
             <div class="history-body">
               <div class="history-title">{{ item.title }}</div>
               <div class="history-meta">{{ item.siteLabel }} · {{ formatHistoryTime(item.visitedAt) }}</div>
             </div>
+            <div class="history-arrow">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="followOverlay" :class="{ open: showFollow }" @click="showFollow = false"></div>
+      <div id="followModal" :class="{ open: showFollow }">
+        <div class="history-header">
+          <h3>关注列表</h3>
+          <button class="close-btn" type="button" aria-label="关闭" @click="showFollow = false">&times;</button>
+        </div>
+
+        <div v-if="followItems.length" class="drawer-filter">
+          <input v-model="followFilter" type="search" placeholder="筛选关注" />
+        </div>
+
+        <div v-if="followItems.length === 0" class="history-state">
+          <p>暂无关注</p>
+        </div>
+
+        <div v-else-if="filteredFollowItems.length === 0" class="history-state">
+          <p>没有匹配的关注</p>
+        </div>
+
+        <div v-else class="history-list">
+          <div v-for="item in filteredFollowItems" :key="`${item.site}-${item.code}`" class="history-item" @click="goToFollowItem(item)">
+            <div class="history-body">
+              <div class="history-title">
+                {{ item.title }}
+                <span v-if="item.unread > 0" class="follow-inline-badge">+{{ item.unread }}</span>
+              </div>
+              <div class="history-meta">{{ item.siteLabel }} · {{ item.replies }} 回复</div>
+            </div>
+            <button class="follow-remove-btn" type="button" @click.stop="removeFollow(item)">取消</button>
             <div class="history-arrow">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="m9 18 6-6-6-6" />
@@ -218,7 +276,9 @@ const activeSite = computed<SiteKey>(() => {
 const siteConfig = computed(() => siteMap[activeSite.value])
 const LIST_SCROLL_KEY = 'reader_list_scroll_positions'
 const HISTORY_KEY = 'reader_browse_history'
-const HISTORY_LIMIT = 30
+const HISTORY_LIMIT = 100
+const FOLLOW_KEY = 'reader_followed_topics'
+const FOLLOW_LIMIT = 100
 
 const needLogin = ref(false)
 const items = ref<any[]>([])
@@ -227,9 +287,14 @@ const errorMessage = ref('')
 const showingCachedList = ref(false)
 const showNotif = ref(false)
 const showHistory = ref(false)
+const showFollow = ref(false)
 const unreadCount = ref(0)
 const notifs = ref<any[]>([])
 const historyItems = ref<HistoryItem[]>([])
+const followItems = ref<FollowedTopic[]>([])
+const followUnreadMap = ref<Record<string, number>>({})
+const historyFilter = ref('')
+const followFilter = ref('')
 const notifLoading = ref(false)
 const notificationsEnabled = ref(false)
 const currentPage = ref(0)
@@ -253,6 +318,19 @@ type HistoryItem = {
   siteLabel: string
   path: string
   visitedAt: number
+}
+
+type FollowedTopic = {
+  code: string
+  title: string
+  site: SiteKey
+  siteLabel: string
+  path: string
+  replies: number
+  lastSeenReplies: number
+  unread: number
+  followedAt: number
+  updatedAt: number
 }
 
 const readScrollPositions = () => {
@@ -309,6 +387,12 @@ watch(showHistory, (val) => {
   else unLockScroll('history')
 })
 
+watch(showFollow, (val) => {
+  if (!process.client) return
+  if (val) lockScroll('follow')
+  else unLockScroll('follow')
+})
+
 const fromPath = computed(() => route.fullPath || '/v2ex')
 
 const topicLink = (code: string) => `/t/${siteConfig.value.topicPrefix}${code}`
@@ -336,6 +420,94 @@ const writeHistory = (itemsToWrite: HistoryItem[]) => {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(itemsToWrite.slice(0, HISTORY_LIMIT)))
 }
 
+const readFollowedTopics = (): FollowedTopic[] => {
+  if (!process.client) return []
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FOLLOW_KEY) || '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item) => item && typeof item.code === 'string' && typeof item.site === 'string')
+  } catch {
+    return []
+  }
+}
+
+const writeFollowedTopics = (itemsToWrite: FollowedTopic[]) => {
+  if (!process.client) return
+  localStorage.setItem(FOLLOW_KEY, JSON.stringify(itemsToWrite.slice(0, FOLLOW_LIMIT)))
+}
+
+const refreshFollowItems = () => {
+  const nextItems = readFollowedTopics()
+  followItems.value = nextItems
+  followUnreadMap.value = nextItems.reduce((map, item) => {
+    const unread = Math.max(Number(item.unread || 0), 0)
+    if (unread > 0) map[`${item.site}-${item.code}`] = unread
+    return map
+  }, {} as Record<string, number>)
+}
+
+const followUnreadForItem = (item: any) => followUnreadMap.value[`${siteConfig.value.key}-${String(item?.code || '')}`] || 0
+
+const matchesFilter = (item: { title?: string; siteLabel?: string; site?: string; code?: string }, filter: string) => {
+  const keyword = filter.trim().toLowerCase()
+  if (!keyword) return true
+  return [
+    item.title,
+    item.siteLabel,
+    item.site,
+    item.code
+  ].some((value) => String(value || '').toLowerCase().includes(keyword))
+}
+
+const filteredHistoryItems = computed(() => historyItems.value.filter((item) => matchesFilter(item, historyFilter.value)))
+const filteredFollowItems = computed(() => followItems.value.filter((item) => matchesFilter(item, followFilter.value)))
+
+const syncFollowUnreadFromList = (listItems: any[]) => {
+  if (!process.client || !Array.isArray(listItems) || !listItems.length) {
+    refreshFollowItems()
+    return
+  }
+
+  const followed = readFollowedTopics()
+  if (!followed.length) {
+    refreshFollowItems()
+    return
+  }
+
+  let changed = false
+  const itemMap = new Map(listItems.map((item) => [String(item.code), item]))
+  const nextFollowed = followed.map((item) => {
+    if (item.site !== siteConfig.value.key) return item
+
+    const listItem = itemMap.get(item.code)
+    if (!listItem) return item
+
+    const currentReplies = Math.max(Number(listItem.replies || 0), 0)
+    const lastSeenReplies = Math.max(Number(item.lastSeenReplies ?? item.replies ?? 0), 0)
+    const nextUnread = Math.max(currentReplies - lastSeenReplies, 0)
+
+    if (
+      currentReplies === Number(item.replies || 0) &&
+      nextUnread === Number(item.unread || 0) &&
+      listItem.title === item.title
+    ) {
+      return item
+    }
+
+    changed = true
+    return {
+      ...item,
+      title: String(listItem.title || item.title || '无标题'),
+      replies: Math.max(currentReplies, Number(item.replies || 0)),
+      unread: nextUnread,
+      updatedAt: Date.now()
+    }
+  })
+
+  if (changed) writeFollowedTopics(nextFollowed)
+  refreshFollowItems()
+}
+
 const recordHistory = (item: any) => {
   if (!process.client || !item?.code) return
   const historyItem: HistoryItem = {
@@ -352,12 +524,26 @@ const recordHistory = (item: any) => {
 
 const openHistory = () => {
   historyItems.value = readHistory()
+  historyFilter.value = ''
   showHistory.value = true
+}
+
+const openFollow = () => {
+  refreshFollowItems()
+  followFilter.value = ''
+  showFollow.value = true
 }
 
 const clearHistory = () => {
   writeHistory([])
   historyItems.value = []
+  historyFilter.value = ''
+}
+
+const removeFollow = (item: FollowedTopic) => {
+  const nextItems = readFollowedTopics().filter((entry) => !(entry.site === item.site && entry.code === item.code))
+  writeFollowedTopics(nextItems)
+  refreshFollowItems()
 }
 
 const formatHistoryTime = (value: number) => {
@@ -488,6 +674,7 @@ const loadList = async () => {
   if (res?.items) {
     items.value = res.items
     localStorage.setItem(siteConfig.value.firstListKey, JSON.stringify(res.items))
+    syncFollowUnreadFromList(res.items)
     loaderText.value = res.items.length ? '继续下滑加载更多' : '暂无内容'
     enableMoreTimer && clearTimeout(enableMoreTimer)
     enableMoreTimer = setTimeout(() => {
@@ -592,6 +779,14 @@ const goToHistoryItem = async (item: HistoryItem) => {
   await navigateTo(item.path)
 }
 
+const goToFollowItem = async (item: FollowedTopic) => {
+  saveListScroll()
+  showFollow.value = false
+  const targetConfig = siteMap[item.site]
+  if (targetConfig) sessionStorage.setItem(targetConfig.lastCodeKey, item.code)
+  await navigateTo(item.path)
+}
+
 const goToTopic = async (notif: any) => {
   saveListScroll()
   showNotif.value = false
@@ -616,9 +811,13 @@ const syncSiteState = async () => {
   needLogin.value = false
   showNotif.value = false
   showHistory.value = false
+  showFollow.value = false
   unreadCount.value = 0
   notifs.value = []
   historyItems.value = []
+  historyFilter.value = ''
+  followFilter.value = ''
+  refreshFollowItems()
   notifLoading.value = false
   errorMessage.value = ''
   stopBlink()
@@ -676,6 +875,7 @@ onMounted(async () => {
 onActivated(() => {
   if (!process.client) return
   stopBlink()
+  refreshFollowItems()
   void restoreListScroll()
   checkHighlight()
 })
@@ -698,6 +898,7 @@ onBeforeUnmount(() => {
 
   unLockScroll('notif')
   unLockScroll('history')
+  unLockScroll('follow')
   stopBlink()
 })
 
@@ -805,6 +1006,21 @@ useHead(() => ({
   color: inherit;
   text-decoration: none;
   font-size: 1.05rem;
+}
+
+.item-follow-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #ff2c55;
+  color: #fff;
+  font-size: 0.68rem;
+  line-height: 1;
+  vertical-align: middle;
 }
 
 .meta {
@@ -940,6 +1156,22 @@ useHead(() => ({
   pointer-events: auto;
 }
 
+#followOverlay {
+  position: fixed;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+  transition: opacity 0.3s;
+  z-index: 1999;
+}
+
+#followOverlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 #notifModal {
   position: fixed;
   top: 0;
@@ -980,6 +1212,26 @@ useHead(() => ({
   right: 0;
 }
 
+#followModal {
+  position: fixed;
+  top: 0;
+  right: -100%;
+  width: 100%;
+  max-width: 420px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
+  transition: right 0.35s ease;
+  z-index: 2000;
+}
+
+#followModal.open {
+  right: 0;
+}
+
 .notif-header {
   padding: 16px 20px;
   display: flex;
@@ -1011,6 +1263,28 @@ useHead(() => ({
 
 .history-clear-btn:hover {
   color: var(--text);
+}
+
+.drawer-filter {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-filter input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.drawer-filter input:focus {
+  border-color: rgba(127, 127, 127, 0.38);
 }
 
 .notif-state {
@@ -1085,6 +1359,21 @@ useHead(() => ({
   font-weight: 500;
 }
 
+.follow-inline-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #ff2c55;
+  color: #fff;
+  font-size: 0.7rem;
+  line-height: 1;
+  vertical-align: middle;
+}
+
 .notif-meta {
   margin-top: 4px;
   color: var(--meta);
@@ -1126,6 +1415,24 @@ useHead(() => ({
   display: flex;
   align-items: center;
   color: var(--meta);
+}
+
+.follow-remove-btn {
+  align-self: center;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: rgba(127, 127, 127, 0.1);
+  color: var(--meta);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.follow-remove-btn:hover {
+  color: var(--text);
+  background: rgba(127, 127, 127, 0.18);
 }
 
 .close-btn {

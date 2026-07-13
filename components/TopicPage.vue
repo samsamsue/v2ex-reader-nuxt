@@ -111,7 +111,17 @@
         <div v-if="repliesReady && (total > 0 || canReply)" class="comments">
           <div class="comments-head">
             <div class="comments-title">讨论 (<span id="count">{{ total }}</span>)</div>
-            <button v-if="canReply" type="button" class="comments-reply-btn" @click="openReplyComposer()">Reply</button>
+            <div class="comments-actions">
+              <button
+                v-if="showFollow"
+                type="button"
+                :class="['comments-follow-btn', { active: isFollowed }]"
+                @click="toggleFollow"
+              >
+                {{ isFollowed ? '已关注' : '关注' }}
+              </button>
+              <button v-if="canReply" type="button" class="comments-reply-btn" @click="openReplyComposer()">Reply</button>
+            </div>
           </div>
           <div v-if="replyNotice" class="reply-notice">{{ replyNotice }}</div>
           <div id="comments">
@@ -166,6 +176,7 @@ const props = withDefaults(defineProps<{
   historySiteLabel?: string
   historyPath?: string
   recordHistory?: boolean
+  showFollow?: boolean
 }>(), {
   requireAuth: false,
   fromPath: '/v2ex',
@@ -186,7 +197,8 @@ const props = withDefaults(defineProps<{
   historySite: 'v2ex',
   historySiteLabel: 'V2EX',
   historyPath: '',
-  recordHistory: true
+  recordHistory: true,
+  showFollow: true
 })
 
 const route = useRoute()
@@ -326,7 +338,9 @@ let normalFav = ''
 let alertFav = ''
 const SCROLL_KEY = 'v2ex_floor_pos'
 const HISTORY_KEY = 'reader_browse_history'
-const HISTORY_LIMIT = 30
+const HISTORY_LIMIT = 100
+const FOLLOW_KEY = 'reader_followed_topics'
+const FOLLOW_LIMIT = 100
 
 // --- 计算属性 ---
 const codeParam = computed(() => props.code || '')
@@ -371,6 +385,21 @@ const externalFloorUrl = computed(() => {
 })
 
 const historyItemPath = computed(() => props.historyPath || `/t/${codeParam.value}`)
+const showFollow = computed(() => Boolean(props.showFollow && props.recordHistory))
+const isFollowed = ref(false)
+
+type FollowedTopic = {
+  code: string
+  title: string
+  site: 'v2ex' | 'linuxdo'
+  siteLabel: string
+  path: string
+  replies: number
+  lastSeenReplies: number
+  unread: number
+  followedAt: number
+  updatedAt: number
+}
 
 const recordBrowseHistory = (title: string) => {
   if (!props.recordHistory || !process.client || !codeParam.value || !title) return
@@ -388,6 +417,71 @@ const recordBrowseHistory = (title: string) => {
     const rest = list.filter((item: any) => !(item?.site === nextItem.site && item?.code === nextItem.code))
     localStorage.setItem(HISTORY_KEY, JSON.stringify([nextItem, ...rest].slice(0, HISTORY_LIMIT)))
   } catch {}
+}
+
+const readFollowedTopics = (): FollowedTopic[] => {
+  if (!process.client) return []
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FOLLOW_KEY) || '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item) => item && typeof item.code === 'string' && typeof item.site === 'string')
+  } catch {
+    return []
+  }
+}
+
+const writeFollowedTopics = (items: FollowedTopic[]) => {
+  if (!process.client) return
+  localStorage.setItem(FOLLOW_KEY, JSON.stringify(items.slice(0, FOLLOW_LIMIT)))
+}
+
+const buildFollowedTopic = (existing?: FollowedTopic): FollowedTopic => {
+  const now = Date.now()
+  const repliesCount = Math.max(Number(total.value || 0), 0)
+  return {
+    code: codeParam.value,
+    title: topicTitle.value || existing?.title || '无标题',
+    site: props.historySite,
+    siteLabel: props.historySiteLabel,
+    path: historyItemPath.value,
+    replies: repliesCount,
+    lastSeenReplies: repliesCount,
+    unread: 0,
+    followedAt: existing?.followedAt || now,
+    updatedAt: now
+  }
+}
+
+const syncFollowState = (markSeen = false) => {
+  if (!showFollow.value || !process.client || !codeParam.value) {
+    isFollowed.value = false
+    return
+  }
+
+  const list = readFollowedTopics()
+  const index = list.findIndex((item) => item.site === props.historySite && item.code === codeParam.value)
+  isFollowed.value = index >= 0
+
+  if (index < 0 || !markSeen) return
+
+  list[index] = buildFollowedTopic(list[index])
+  writeFollowedTopics(list)
+}
+
+const toggleFollow = () => {
+  if (!showFollow.value || !process.client || !codeParam.value) return
+
+  const list = readFollowedTopics()
+  const exists = list.find((item) => item.site === props.historySite && item.code === codeParam.value)
+
+  if (exists) {
+    writeFollowedTopics(list.filter((item) => !(item.site === props.historySite && item.code === codeParam.value)))
+    isFollowed.value = false
+    return
+  }
+
+  writeFollowedTopics([buildFollowedTopic(), ...list])
+  isFollowed.value = true
 }
 
 // --- 方法：楼层记忆功能 ---
@@ -915,6 +1009,7 @@ const fetchTopic = async () => {
     if (res?.title) {
       topicTitle.value = res.title
       recordBrowseHistory(res.title)
+      syncFollowState()
 	  if(!props.showQr) document.title = `${res.title}`
       topicContent.value = enhanceRichHtml(res.content || res.contentHtml || '', { enableFloorLinks: true })
 	  loaded.value = true
@@ -963,6 +1058,7 @@ const fetchReplies = async (silent = false, minPages?: number, resetLimit = true
     opAuthor.value = res?.opAuthor || null
     allIds.value = res?.allIds || []
     total.value = Math.max(Number(res?.total || 0), allIds.value.length)
+    syncFollowState(true)
     replyFloorMap.value = res?.replyFloorMap || {}
     replyNotice.value = res?.replyNotice || ''
     loadedReplyPages.value = res?.loadedPages || 1
@@ -2009,7 +2105,15 @@ body {
   margin-bottom: 10px;
 }
 
-.comments-reply-btn {
+.comments-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.comments-reply-btn,
+.comments-follow-btn {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 3px 8px;
@@ -2021,7 +2125,14 @@ body {
   line-height: 1.2;
 }
 
-.comments-reply-btn:hover {
+.comments-follow-btn.active {
+  border-color: rgba(29, 33, 41, 0.2);
+  background: rgba(29, 33, 41, 0.08);
+  color: var(--text);
+}
+
+.comments-reply-btn:hover,
+.comments-follow-btn:hover {
   color: var(--text);
   background: rgba(127, 127, 127, 0.08);
 }
