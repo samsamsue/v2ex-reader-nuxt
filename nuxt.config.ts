@@ -16,6 +16,11 @@ export default defineNuxtConfig({
   experimental: {
     appManifest: false
   },
+  routeRules: {
+    '/api/imgbb/upload': {
+      bodyLimit: '12mb'
+    }
+  },
   vite: {
     plugins: [
       {

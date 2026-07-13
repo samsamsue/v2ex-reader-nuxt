@@ -804,7 +804,26 @@ const openImagePicker = () => {
   imageFileInputRef.value?.click()
 }
 
-const uploadImageFile = async (file: File) => {
+const IMGUR_CLIENT_ID = '60605aad4a62882'
+
+const uploadImageFileToImgur = async (file: File) => {
+  const formData = new FormData()
+  formData.set('image', file)
+  const resp = await fetch('https://api.imgur.com/3/upload', {
+    method: 'POST',
+    headers: {
+      Authorization: `Client-ID ${IMGUR_CLIENT_ID}`
+    },
+    body: formData
+  })
+  const payload: any = await resp.json().catch(() => null)
+  if (!resp.ok || !payload?.success || !payload?.data?.link) {
+    throw new Error(payload?.data?.error || payload?.error?.message || payload?.error || `Imgur upload failed with ${resp.status}`)
+  }
+  return payload.data.link as string
+}
+
+const uploadImageFileViaServer = async (file: File) => {
   const formData = new FormData()
   formData.set('image', file)
   const res: any = await $fetch('/api/imgbb/upload', {
@@ -815,6 +834,15 @@ const uploadImageFile = async (file: File) => {
     throw new Error(res?.message || res?.error || 'Upload failed')
   }
   return res.link as string
+}
+
+const uploadImageFile = async (file: File) => {
+  try {
+    return await uploadImageFileToImgur(file)
+  } catch (error) {
+    console.warn('[reply-upload] direct Imgur upload failed, falling back to server proxy.', error)
+    return await uploadImageFileViaServer(file)
+  }
 }
 
 const uploadReplyImages = async (files: File[]) => {
