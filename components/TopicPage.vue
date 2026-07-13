@@ -338,6 +338,7 @@ const HISTORY_KEY = 'reader_browse_history'
 const HISTORY_LIMIT = 100
 const FOLLOW_KEY = 'reader_followed_topics'
 const FOLLOW_LIMIT = 100
+const TOP_VISIBLE_OFFSET = 85
 
 // --- 计算属性 ---
 const codeParam = computed(() => props.code || '')
@@ -530,6 +531,18 @@ const refreshCodeHighlighting = async () => {
   applyCodeHighlighting(document.getElementById('mainContent'))
 }
 
+const getReadingLineY = () => {
+  if (!process.client) return TOP_VISIBLE_OFFSET
+  return Math.min(Math.max(window.innerHeight * 0.45, 180), window.innerHeight - 120)
+}
+
+const scrollFloorToReadingLine = (el: HTMLElement) => {
+  window.scrollTo({
+    top: Math.max(0, el.offsetTop - getReadingLineY()),
+    behavior: 'smooth'
+  })
+}
+
 const checkHistory = () => {
   const saved = getFloor(codeParam.value)
   if (saved) {
@@ -549,7 +562,7 @@ const jumpToHistory = async () => {
     await ensureRepliesLoadedForFloor(historyFloor.value)
     const el = document.getElementById('c_' + historyFloor.value)
     if (el) {
-      window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
+      scrollFloorToReadingLine(el)
       el.classList.remove('flash-highlight')
       void el.offsetWidth
       el.classList.add('flash-highlight')
@@ -1144,21 +1157,35 @@ const listenScroll = () => {
       const commentsBox = document.getElementById('comments')
       
       // 如果向上滚动离开了评论区，则清除该帖子的阅读记录
-      if (commentsBox && commentsBox.getBoundingClientRect().top > 85 && window.scrollY > 10) {
+      if (commentsBox && commentsBox.getBoundingClientRect().top > TOP_VISIBLE_OFFSET && window.scrollY > 10) {
         removeFloor(codeParam.value)
         return
       }
       
       // 记录当前看过的楼层
       let currentFloor: string | null = null
+      const readingLineY = getReadingLineY()
+      let fallbackFloor: string | null = null
       for (let i = 0; i < comments.length; i++) {
-        const rect = comments[i].getBoundingClientRect()
-        if (rect.bottom > 85) {
-          currentFloor = (comments[i] as HTMLElement).id.replace('c_', '')
+        const comment = comments[i] as HTMLElement
+        const rect = comment.getBoundingClientRect()
+        const floorId = comment.id.replace('c_', '')
+
+        if (!fallbackFloor && rect.bottom > TOP_VISIBLE_OFFSET) {
+          fallbackFloor = floorId
+        }
+
+        if (rect.top <= readingLineY && rect.bottom >= readingLineY) {
+          currentFloor = floorId
+          break
+        }
+
+        if (rect.top > readingLineY) {
+          currentFloor = fallbackFloor || floorId
           break
         }
       }
-      if (currentFloor) saveFloor(codeParam.value, currentFloor)
+      if (currentFloor || fallbackFloor) saveFloor(codeParam.value, currentFloor || fallbackFloor!)
     }, 300)
 }
 

@@ -1,10 +1,12 @@
 import { defineEventHandler, readMultipartFormData, setResponseStatus } from 'h3'
 
+const DEFAULT_IMGUR_CLIENT_ID = '60605aad4a62882'
+
 export default defineEventHandler(async (event) => {
-  const apiKey = process.env.IMGBB_API_KEY || ''
-  if (!apiKey) {
+  const clientId = process.env.IMGUR_CLIENT_ID || DEFAULT_IMGUR_CLIENT_ID
+  if (!clientId) {
     setResponseStatus(event, 400)
-    return { error: 'IMGBB_API_KEY_REQUIRED', message: 'Set IMGBB_API_KEY.' }
+    return { error: 'IMGUR_CLIENT_ID_REQUIRED', message: 'Set IMGUR_CLIENT_ID.' }
   }
 
   const parts = await readMultipartFormData(event)
@@ -22,26 +24,28 @@ export default defineEventHandler(async (event) => {
   const formData = new FormData()
   const blob = new Blob([new Uint8Array(image.data)], { type: image.type || 'application/octet-stream' })
   formData.set('image', blob, image.filename || 'upload.png')
-  if (image.filename) formData.set('name', image.filename.replace(/\.[^.]+$/, ''))
 
-  const resp = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(apiKey)}`, {
+  const resp = await fetch('https://api.imgur.com/3/upload', {
     method: 'POST',
+    headers: {
+      Authorization: `Client-ID ${clientId}`
+    },
     body: formData
   })
   const payload: any = await resp.json().catch(() => null)
 
-  if (!resp.ok || !payload?.success || !payload?.data?.url) {
+  if (!resp.ok || !payload?.success || !payload?.data?.link) {
     setResponseStatus(event, resp.status || 502)
     return {
-      error: 'IMGBB_UPLOAD_FAILED',
-      message: payload?.error?.message || payload?.error || `ImgBB upload failed with ${resp.status}`
+      error: 'IMGUR_UPLOAD_FAILED',
+      message: payload?.data?.error || payload?.error?.message || payload?.error || `Imgur upload failed with ${resp.status}`
     }
   }
 
   return {
     ok: true,
-    link: payload.data.url,
-    displayUrl: payload.data.display_url || payload.data.url,
-    deleteUrl: payload.data.delete_url || ''
+    link: payload.data.link,
+    displayUrl: payload.data.link,
+    deleteUrl: payload.data.deletehash || ''
   }
 })

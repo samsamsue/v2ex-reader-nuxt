@@ -40,6 +40,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
             </svg>
+            <span v-if="followUnreadCount > 0" class="follow-entry-badge">{{ followUnreadCount > 99 ? '99+' : followUnreadCount }}</span>
           </button>
 
           <button
@@ -461,6 +462,7 @@ const matchesFilter = (item: { title?: string; siteLabel?: string; site?: string
 
 const filteredHistoryItems = computed(() => historyItems.value.filter((item) => matchesFilter(item, historyFilter.value)))
 const filteredFollowItems = computed(() => followItems.value.filter((item) => matchesFilter(item, followFilter.value)))
+const followUnreadCount = computed(() => Object.values(followUnreadMap.value).reduce((sum, count) => sum + count, 0))
 
 const syncFollowUnreadFromList = (listItems: any[]) => {
   if (!process.client || !Array.isArray(listItems) || !listItems.length) {
@@ -1087,6 +1089,20 @@ useHead(() => ({
   border-radius: 999px;
   background: #ff2c55;
   color: #fff;
+  font-size: 10px;
+  border: 2px solid var(--bg);
+}
+
+.follow-entry-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  padding: 3px 2px;
+  line-height: 1;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.28);
+  color: var(--text);
   font-size: 10px;
   border: 2px solid var(--bg);
 }
