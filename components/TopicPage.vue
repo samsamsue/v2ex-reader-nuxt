@@ -107,7 +107,7 @@
 
         <div v-if="repliesReady && (total > 0 || canReply)" class="comments">
           <div class="comments-head">
-            <div class="comments-title">讨论 (<span id="count">{{ total }}</span>)</div>
+            <div class="comments-title">Comments (<span id="count">{{ total }}</span>)</div>
             <div class="comments-actions">
               <button
                 v-if="showFollow"
@@ -127,6 +127,7 @@
               :opAuthor="opAuthor"
               :reply-enabled="canReply"
               :external-floor-url="externalFloorUrl"
+              :last-seen-floor="historyFloor"
               @reply="startReply"
             />
             <div v-if="loadingMoreReplies" class="comments-loading">
@@ -224,6 +225,7 @@ const loadedReplyPages = ref(0)
 const hasMoreReplyPages = ref(false)
 const loadingMoreReplies = ref(false)
 const lastAutoJumpKey = ref('')
+const lastAutoHistoryJumpKey = ref('')
 const replyNotice = ref('')
 const replyText = ref('')
 const replyTarget = ref<any | null>(null)
@@ -383,6 +385,7 @@ const externalFloorUrl = computed(() => {
     .replace('{id}', String(rawId.value))
     .replace('{floor}', '{floor}')
 })
+const shouldAutoJumpHistory = computed(() => String(route.query.from || '') === 'follow')
 
 const historyItemPath = computed(() => props.historyPath || `/t/${codeParam.value}`)
 const historyStorageKey = computed(() => `${HISTORY_KEY}_${props.historySite}`)
@@ -512,13 +515,14 @@ const getFloor = (id: string) => {
   return data[id] ? data[id].f : null
 }
 
-const removeFloor = (id: string) => {
+const removeFloor = (id: string, clearCurrentMarker = false) => {
   if (!id) return
   let data = JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}')
   if (data[id]) {
     delete data[id]
     localStorage.setItem(SCROLL_KEY, JSON.stringify(data))
   }
+  if (clearCurrentMarker && id === codeParam.value) historyFloor.value = null
 }
 
 // --- 方法：UI 操作 ---
@@ -582,6 +586,14 @@ const jumpToHistory = async () => {
   } finally {
     jumpingToHistory.value = false
   }
+}
+
+const jumpToHistoryIfRequested = async () => {
+  if (!shouldAutoJumpHistory.value || !historyFloor.value) return
+  const jumpKey = `${rawId.value}:${historyFloor.value}`
+  if (lastAutoHistoryJumpKey.value === jumpKey) return
+  lastAutoHistoryJumpKey.value = jumpKey
+  await jumpToHistory()
 }
 
 const jumpToFloor = (event: Event | null, floor: number | string) => {
@@ -1120,6 +1132,7 @@ const fetchReplies = async (
     hasMoreReplyPages.value = Boolean(res?.hasMorePages)
     if (resetLimit) resetVisibleReplies()
     await refreshCodeHighlighting()
+    await jumpToHistoryIfRequested()
     if (autoJump) await jumpToRequestedFloor()
     
     if (detectNewReplies && prevIds.length) {
@@ -1309,6 +1322,7 @@ onUnmounted(() => {
 watch(() => rawId.value, async (next, prev) => {
   if (!next || next === prev) return
   lastAutoJumpKey.value = ''
+  lastAutoHistoryJumpKey.value = ''
   loadingTopic.value = true
   loadingReplies.value = true
   await Promise.allSettled([fetchTopic(), fetchReplies()])
@@ -1316,9 +1330,10 @@ watch(() => rawId.value, async (next, prev) => {
 })
 
 watch(
-  () => [route.query.reply, route.query.floor, route.query.page],
+  () => [route.query.reply, route.query.floor, route.query.page, route.query.from],
   () => {
     lastAutoJumpKey.value = ''
+    lastAutoHistoryJumpKey.value = ''
     void fetchReplies()
   }
 )

@@ -802,7 +802,10 @@ const goToFollowItem = async (item: FollowedTopic) => {
   showFollow.value = false
   const targetConfig = siteMap[item.site]
   if (targetConfig) sessionStorage.setItem(targetConfig.lastCodeKey, item.code)
-  await navigateTo(item.path)
+  await navigateTo({
+    path: item.path,
+    query: { from: 'follow' }
+  })
 }
 
 const goToTopic = async (notif: any) => {

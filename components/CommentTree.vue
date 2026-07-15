@@ -49,6 +49,7 @@
           #{{ node.id }}
         </button>
         <span v-else style="margin-left: 6px; opacity: 0.4;">#{{ node.id }}</span>
+        <span v-if="isLastSeenNode(node)" class="last-seen-marker">上次看到</span>
       </div>
       <div ref="replyTxtRef" class="reply-txt" v-html="parsedContent(node.replyHtml)"></div>
       <CommentTree
@@ -58,6 +59,7 @@
         :level="level + 1"
         :reply-enabled="replyEnabled"
         :external-floor-url="externalFloorUrl"
+        :last-seen-floor="lastSeenFloor"
         @reply="$emit('reply', $event)"
       />
     </div>
@@ -74,6 +76,7 @@ const props = defineProps<{
   level?: number
   replyEnabled?: boolean
   externalFloorUrl?: string
+  lastSeenFloor?: string | number | null
 }>()
 defineEmits<{ reply: [node: any] }>()
 const level = computed(() => props.level || 0)
@@ -85,6 +88,11 @@ const nodeStyle = () => {
 }
 
 const normalizeExternalId = (value: unknown) => String(value || '').replace(/^r_/, '')
+
+const isLastSeenNode = (node: any) => {
+  const floor = String(props.lastSeenFloor || '')
+  return Boolean(floor && String(node?.id || '') === floor)
+}
 
 const jumpToFloor = (floor: number) => {
   if (typeof window === 'undefined') return
@@ -167,6 +175,20 @@ watch( ()=> props.nodes, () => {
 
 .comment-bar:hover .reply-action-btn {
   opacity: 1;
+}
+
+.last-seen-marker {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 </style>
