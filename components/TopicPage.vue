@@ -385,6 +385,8 @@ const externalFloorUrl = computed(() => {
 })
 
 const historyItemPath = computed(() => props.historyPath || `/t/${codeParam.value}`)
+const historyStorageKey = computed(() => `${HISTORY_KEY}_${props.historySite}`)
+const followStorageKey = computed(() => `${FOLLOW_KEY}_${props.historySite}`)
 const showFollow = computed(() => Boolean(props.showFollow && props.recordHistory))
 const isFollowed = ref(false)
 
@@ -404,8 +406,9 @@ type FollowedTopic = {
 const recordBrowseHistory = (title: string) => {
   if (!props.recordHistory || !process.client || !codeParam.value || !title) return
   try {
-    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
-    const list = Array.isArray(parsed) ? parsed : []
+    const stored = localStorage.getItem(historyStorageKey.value)
+    const parsed = JSON.parse(stored ?? localStorage.getItem(HISTORY_KEY) ?? '[]')
+    const list = Array.isArray(parsed) ? parsed.filter((item) => item?.site === props.historySite) : []
     const nextItem = {
       code: codeParam.value,
       title,
@@ -415,16 +418,21 @@ const recordBrowseHistory = (title: string) => {
       visitedAt: Date.now()
     }
     const rest = list.filter((item: any) => !(item?.site === nextItem.site && item?.code === nextItem.code))
-    localStorage.setItem(HISTORY_KEY, JSON.stringify([nextItem, ...rest].slice(0, HISTORY_LIMIT)))
+    localStorage.setItem(historyStorageKey.value, JSON.stringify([nextItem, ...rest].slice(0, HISTORY_LIMIT)))
   } catch {}
 }
 
 const readFollowedTopics = (): FollowedTopic[] => {
   if (!process.client) return []
   try {
-    const parsed = JSON.parse(localStorage.getItem(FOLLOW_KEY) || '[]')
+    const stored = localStorage.getItem(followStorageKey.value)
+    const parsed = JSON.parse(stored ?? localStorage.getItem(FOLLOW_KEY) ?? '[]')
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((item) => item && typeof item.code === 'string' && typeof item.site === 'string')
+    const itemsForSite = parsed
+      .filter((item) => item && typeof item.code === 'string' && item.site === props.historySite)
+      .slice(0, FOLLOW_LIMIT)
+    if (stored === null) localStorage.setItem(followStorageKey.value, JSON.stringify(itemsForSite))
+    return itemsForSite
   } catch {
     return []
   }
@@ -432,7 +440,8 @@ const readFollowedTopics = (): FollowedTopic[] => {
 
 const writeFollowedTopics = (items: FollowedTopic[]) => {
   if (!process.client) return
-  localStorage.setItem(FOLLOW_KEY, JSON.stringify(items.slice(0, FOLLOW_LIMIT)))
+  const itemsForSite = items.filter((item) => item.site === props.historySite).slice(0, FOLLOW_LIMIT)
+  localStorage.setItem(followStorageKey.value, JSON.stringify(itemsForSite))
 }
 
 const buildFollowedTopic = (existing?: FollowedTopic): FollowedTopic => {
