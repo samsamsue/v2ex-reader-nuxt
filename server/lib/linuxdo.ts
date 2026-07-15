@@ -99,45 +99,6 @@ type DiscourseTopicListResponse = {
 
 type DiscourseListTopic = NonNullable<NonNullable<DiscourseTopicListResponse['topic_list']>['topics']>[number]
 
-type DiscourseTopicResponse = {
-  id: number
-  title?: string
-  fancy_title?: string
-  slug?: string
-  created_at?: string
-  last_posted_at?: string
-  posts_count?: number
-  details?: {
-    created_by?: {
-      id?: number
-      username?: string
-      name?: string
-    }
-  }
-  post_stream?: {
-    stream?: number[]
-    posts?: DiscoursePost[]
-  }
-}
-
-type DiscoursePostsResponse = {
-  post_stream?: {
-    posts?: DiscoursePost[]
-  }
-}
-
-type DiscoursePost = {
-  id: number
-  username?: string
-  display_username?: string
-  created_at?: string
-  cooked?: string
-  post_number: number
-  reply_to_post_number?: number | null
-  like_count?: number
-  actions_summary?: Array<{ id?: number; count?: number }>
-}
-
 export const encodeId = (numId: string | number) => (parseInt(String(numId), 10) ^ SALT).toString(36)
 export const decodeId = (code: string) => {
   try {
@@ -186,6 +147,28 @@ type SiteFetchOptions = {
   timeoutMs?: number
 }
 
+const MIN_REQUEST_INTERVAL_MS = parseInt(process.env.LINUXDO_MIN_REQUEST_INTERVAL_MS || '1000', 10) || 1000
+let upstreamRequestQueue = Promise.resolve()
+let lastUpstreamRequestAt = 0
+
+async function scheduleUpstreamRequest<T>(request: () => Promise<T>) {
+  const previous = upstreamRequestQueue
+  let releaseQueue: () => void = () => {}
+  upstreamRequestQueue = new Promise<void>((resolve) => {
+    releaseQueue = resolve
+  })
+
+  await previous
+  try {
+    const waitMs = Math.max(0, MIN_REQUEST_INTERVAL_MS - (Date.now() - lastUpstreamRequestAt))
+    if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs))
+    lastUpstreamRequestAt = Date.now()
+    return await request()
+  } finally {
+    releaseQueue()
+  }
+}
+
 export async function safeFetch(pathOrUrl: string, env: SiteEnv, init?: RequestInit, options: SiteFetchOptions = {}) {
   const safeCookie = options.skipCookie
     ? ''
@@ -203,23 +186,18 @@ export async function safeFetch(pathOrUrl: string, env: SiteEnv, init?: RequestI
     headers.Pragma = 'no-cache'
   }
 
-  const resp = await fetch(buildUrl(pathOrUrl), {
-    ...init,
-    dispatcher: options.skipProxy ? DIRECT_AGENT : PROXY_AGENT || undefined,
-    headers,
-    signal: init?.signal || (options.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined)
-  })
+  const resp = await scheduleUpstreamRequest(() => fetch(buildUrl(pathOrUrl), {
+      ...init,
+      dispatcher: options.skipProxy ? DIRECT_AGENT : PROXY_AGENT || undefined,
+      headers,
+      signal: init?.signal || (options.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined)
+    }))
 
   if (resp.status === 403) throw new Error('LINUXDO_FORBIDDEN_403')
   if (resp.status === 429) throw new Error('LINUXDO_RATE_LIMIT_429')
   if (!resp.ok) throw new Error('LINUXDO_NET_ERROR_' + resp.status)
 
   return resp
-}
-
-export async function safeFetchJson<T>(pathOrUrl: string, env: SiteEnv, init?: RequestInit) {
-  const resp = await safeFetch(pathOrUrl, env, init)
-  return (await resp.json()) as T
 }
 
 function looksLikeXmlRss(text: string) {
@@ -237,6 +215,31 @@ function normalizeCurlError(error: unknown) {
   const stdout = err?.stdout ? String(err.stdout).trim().slice(0, 200) : ''
   const message = err?.message || String(error || 'UNKNOWN_ERROR')
   return [message, stderr, stdout && `stdout: ${stdout}`].filter(Boolean).join(' | ')
+}
+
+const RSS_CACHE_TTL_MS = parseInt(process.env.LINUXDO_RSS_CACHE_TTL_MS || '60000', 10) || 60000
+const RSS_CACHE_MAX = parseInt(process.env.LINUXDO_RSS_CACHE_MAX || '80', 10) || 80
+const rssTextCache = new Map<string, { expiresAt: number; text: string }>()
+const rssTextInflight = new Map<string, Promise<string>>()
+
+function getRssCacheKey(pathOrUrl: string, env: SiteEnv, options: { useProxy: boolean; withCookie: boolean }) {
+  return [
+    buildUrl(pathOrUrl),
+    options.useProxy ? 'proxy' : 'direct',
+    options.withCookie ? 'cookie' : 'public',
+    env.LINUXDO_USER_AGENT || USER_AGENT
+  ].join('|')
+}
+
+function pruneRssCache() {
+  if (rssTextCache.size <= RSS_CACHE_MAX) return
+  const now = Date.now()
+  for (const [key, item] of rssTextCache) {
+    if (item.expiresAt <= now || rssTextCache.size > RSS_CACHE_MAX) {
+      rssTextCache.delete(key)
+    }
+    if (rssTextCache.size <= RSS_CACHE_MAX) break
+  }
 }
 
 async function curlFetchText(pathOrUrl: string, env: SiteEnv, options: { useProxy: boolean; withCookie: boolean }) {
@@ -295,35 +298,62 @@ async function curlFetchText(pathOrUrl: string, env: SiteEnv, options: { useProx
 export async function safeFetchText(pathOrUrl: string, env: SiteEnv) {
   const useProxy = process.env.LINUXDO_RSS_NO_PROXY !== '1'
   const withCookie = process.env.LINUXDO_RSS_WITH_COOKIE === '1' || Boolean(env.LINUXDO_CF_CLEARANCE)
-  try {
-    const resp = await safeFetch(pathOrUrl, env, {
-      headers: {
-        Accept: 'application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, text/html;q=0.7, */*;q=0.5'
-      }
-    }, {
-      skipCookie: !withCookie,
-      noCache: false,
-      skipProxy: !useProxy,
-      timeoutMs: 12000
-    })
-    return await resp.text()
-  } catch (error) {
-    if (process.env.LINUXDO_RSS_CURL_FALLBACK !== '0') {
-      try {
-        const text = await curlFetchText(pathOrUrl, env, { useProxy, withCookie })
-        const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
-        console.warn(`[linux.do] RSS fetch fallback to curl for ${pathOrUrl}: ${message}`)
-        return text
-      } catch (curlError) {
-        console.warn(`[linux.do] RSS curl fallback failed for ${pathOrUrl}: ${normalizeCurlError(curlError)}`)
-      }
-    }
+  const cacheKey = getRssCacheKey(pathOrUrl, env, { useProxy, withCookie })
+  const cached = rssTextCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) return cached.text
 
-    if (!useProxy) {
-      const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
-      throw new Error(`LINUXDO_RSS_DIRECT_FAILED: ${message}`)
+  const inflight = rssTextInflight.get(cacheKey)
+  if (inflight) return await inflight
+
+  const request = (async () => {
+    try {
+      const resp = await safeFetch(pathOrUrl, env, {
+        headers: {
+          Accept: 'application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, text/html;q=0.7, */*;q=0.5'
+        }
+      }, {
+        skipCookie: !withCookie,
+        noCache: false,
+        skipProxy: !useProxy,
+        timeoutMs: 12000
+      })
+      return await resp.text()
+    } catch (error) {
+      if (cached?.text) {
+        console.warn(`[linux.do] RSS request failed for ${pathOrUrl}; serving stale cache.`)
+        return cached.text
+      }
+
+      if (process.env.LINUXDO_RSS_CURL_FALLBACK === '1') {
+        try {
+          const text = await curlFetchText(pathOrUrl, env, { useProxy, withCookie })
+          const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
+          console.warn(`[linux.do] RSS fetch fallback to curl for ${pathOrUrl}: ${message}`)
+          return text
+        } catch (curlError) {
+          console.warn(`[linux.do] RSS curl fallback failed for ${pathOrUrl}: ${normalizeCurlError(curlError)}`)
+        }
+      }
+
+      if (!useProxy) {
+        const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
+        throw new Error(`LINUXDO_RSS_DIRECT_FAILED: ${message}`)
+      }
+      throw error
     }
-    throw error
+  })()
+
+  rssTextInflight.set(cacheKey, request)
+  try {
+    const text = await request
+    rssTextCache.set(cacheKey, {
+      text,
+      expiresAt: Date.now() + RSS_CACHE_TTL_MS
+    })
+    pruneRssCache()
+    return text
+  } finally {
+    rssTextInflight.delete(cacheKey)
   }
 }
 
@@ -343,7 +373,7 @@ export function getLinuxDoDiagnostics(env: SiteEnv = ENV) {
     proxySource: PROXY_CONFIG.source || '',
     rssUsesProxy: process.env.LINUXDO_RSS_NO_PROXY !== '1',
     rssSendsCookie: process.env.LINUXDO_RSS_WITH_COOKIE === '1' || Boolean(env.LINUXDO_CF_CLEARANCE),
-    rssCurlFallback: process.env.LINUXDO_RSS_CURL_FALLBACK !== '0',
+    rssCurlFallback: process.env.LINUXDO_RSS_CURL_FALLBACK === '1',
     hasLinuxDoCookie: Boolean(safeCookie),
     hasCfClearance: /(?:^|;\s*)cf_clearance=/i.test(safeCookie) || Boolean(env.LINUXDO_CF_CLEARANCE),
     hasLinuxDoUserAgent: Boolean(env.LINUXDO_USER_AGENT)
@@ -561,76 +591,6 @@ function buildReplyTree<T extends { id: number; parent: number | null; children:
   return tree
 }
 
-async function fetchTopicJsonWithPosts(id: number, env: SiteEnv) {
-  const topic = await safeFetchJson<DiscourseTopicResponse>(`/t/topic/${id}.json`, env)
-  const stream = topic.post_stream?.stream || []
-  const posts = [...(topic.post_stream?.posts || [])]
-  const loadedIds = new Set(posts.map((post) => post.id))
-
-  if (stream.length > posts.length) {
-    const missingPostIds = stream.filter((postId) => !loadedIds.has(postId))
-
-    for (let i = 0; i < missingPostIds.length; i += 20) {
-      const batch = missingPostIds.slice(i, i + 20)
-      const query = batch.map((postId) => `post_ids[]=${postId}`).join('&')
-      const extra = await safeFetchJson<DiscoursePostsResponse>(`/t/${id}/posts.json?${query}`, env)
-      const extraPosts = extra.post_stream?.posts || []
-
-      extraPosts.forEach((post) => {
-        if (!loadedIds.has(post.id)) {
-          loadedIds.add(post.id)
-          posts.push(post)
-        }
-      })
-    }
-  }
-
-  topic.post_stream = {
-    ...(topic.post_stream || {}),
-    posts: posts.sort((a, b) => a.post_number - b.post_number)
-  }
-
-  return topic
-}
-
-async function fetchRepliesByIdFromJson(id: number, env: SiteEnv) {
-  const topic = await fetchTopicJsonWithPosts(id, env)
-  const posts = (topic.post_stream?.posts || []).sort((a, b) => a.post_number - b.post_number)
-  const authorByPostNumber = new Map<number, string>()
-
-  posts.forEach((post) => {
-    authorByPostNumber.set(post.post_number, getPostAuthor(post))
-  })
-
-  const replyPosts = posts.filter((post) => post.post_number > 1)
-  const replies = replyPosts.map((post) => {
-    const replyContext = parseReplyContext(id, post.cooked || '')
-    const parentPostNumber = post.reply_to_post_number ?? replyContext.parentPostNumber
-    const replyAuthor =
-      (parentPostNumber ? authorByPostNumber.get(parentPostNumber) : '') || replyContext.replyAuthor || ''
-
-    return {
-      id: post.post_number,
-      author: getPostAuthor(post),
-      replyAuthor,
-      replyFloor: parentPostNumber,
-      replyHtml: replyContext.cleanedHtml || post.cooked || '',
-      likes: getPostLikes(post),
-      time: formatRelativeTime(post.created_at),
-      parent: parentPostNumber,
-      children: [] as any[]
-    }
-  })
-
-  return {
-    opAuthor: getPostAuthor(posts[0]) || topic.details?.created_by?.username || topic.details?.created_by?.name || null,
-    replies: buildReplyTree(replies),
-    total: replyPosts.length,
-    allIds: replyPosts.map((post) => post.post_number),
-    replySource: 'json'
-  }
-}
-
 async function fetchRepliesByIdFromRss(id: number, env: SiteEnv, replyNotice = '') {
   const rss = parseTopicRss(await safeFetchText(`/t/topic/${id}.rss`, env))
   const replyPosts = rss.items.filter((item) => item.postNumber > 1)
@@ -742,16 +702,6 @@ function getTopicAuthor(
   return user?.username || user?.name || ''
 }
 
-function getPostAuthor(post?: DiscoursePost) {
-  return post?.display_username || post?.username || ''
-}
-
-function getPostLikes(post?: DiscoursePost) {
-  if (!post) return 0
-  const liked = post.actions_summary?.find((item) => item.id === 2)?.count
-  return typeof liked === 'number' ? liked : post.like_count || 0
-}
-
 export function buildTopicUrl(slug: string | undefined, id: number) {
   return `${SITE_BASE}/t/${slug || 'topic'}/${id}`
 }
@@ -790,26 +740,16 @@ export async function fetchTopicById(id: number, env: SiteEnv) {
 }
 
 async function fetchRepliesByIdRssFirst(id: number, env: SiteEnv) {
-  let rssError: unknown = null
-
   try {
     return await fetchRepliesByIdFromRss(id, env)
   } catch (error) {
-    rssError = error
-    const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
-    console.warn(`[linux.do] Replies RSS fallback to JSON for topic ${id}: ${message}`)
-  }
-
-  try {
-    return await fetchRepliesByIdFromJson(id, env)
-  } catch (jsonError) {
-    throw rssError || jsonError
+    throw error
   }
 }
 
 export async function fetchRepliesById(id: number, env: SiteEnv) {
   return await fetchRepliesByIdRssFirst(id, env)
-
+/*
   let jsonError: unknown = null
 
   try {
@@ -833,27 +773,5 @@ export async function fetchRepliesById(id: number, env: SiteEnv) {
   } catch (rssError) {
     throw jsonError || rssError
   }
-}
-
-export async function createTopicReply(topicId: number, raw: string, env: SiteEnv, replyToPostNumber?: number | null) {
-  const content = raw.trim()
-  if (!content) throw new Error('REPLY_EMPTY')
-
-  const payload: Record<string, string | number> = {
-    topic_id: topicId,
-    raw: content
-  }
-  if (replyToPostNumber) payload.reply_to_post_number = replyToPostNumber
-
-  return await safeFetchJson('/posts.json', env, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-      Origin: SITE_BASE,
-      Referer: `${SITE_BASE}/t/topic/${topicId}`
-    },
-    body: JSON.stringify(payload)
-  })
+*/
 }

@@ -23,6 +23,7 @@
     :history-site="historySite"
     :history-site-label="historySiteLabel"
     :history-path="historyPath"
+    :auto-poll-replies="!isLinuxdo"
   />
 </template>
 
@@ -45,7 +46,7 @@ const pageTitle = computed(() => isLinuxdo.value ? 'linux.do Reader' : 'V2EX Rea
 const shareCodePrefix = computed(() => isLinuxdo.value ? LINUXDO_PREFIX : '')
 const openOriginalTemplate = computed(() => isLinuxdo.value ? 'https://linux.do/t/topic/{id}' : 'https://www.v2ex.com/t/{id}')
 const externalFloorTemplate = computed(() => isLinuxdo.value ? 'https://linux.do/t/topic/{id}/{floor}' : 'https://www.v2ex.com/t/{id}#{floor}')
-const replyApi = computed(() => isLinuxdo.value ? '/api/reply' : '/api/v2ex/reply')
+const replyApi = computed(() => isLinuxdo.value ? '' : '/api/v2ex/reply')
 const salt = computed(() => isLinuxdo.value ? LINUXDO_SALT : V2EX_SALT)
 const shareSalt = computed(() => isLinuxdo.value ? LINUXDO_SHARE_SALT : V2EX_SHARE_SALT)
 const historySite = computed(() => isLinuxdo.value ? 'linuxdo' : 'v2ex')

@@ -275,6 +275,7 @@ const activeSite = computed<SiteKey>(() => {
   return 'v2ex'
 })
 const siteConfig = computed(() => siteMap[activeSite.value])
+const notificationsSupported = computed(() => siteConfig.value.key === 'v2ex')
 const LIST_SCROLL_KEY = 'reader_list_scroll_positions'
 const HISTORY_KEY = 'reader_browse_history'
 const HISTORY_LIMIT = 100
@@ -733,6 +734,7 @@ const loadMore = async () => {
 }
 
 const openNotif = async () => {
+  if (!notificationsSupported.value) return
   showNotif.value = true
   notifLoading.value = true
   unreadCount.value = 0
@@ -751,6 +753,7 @@ const openNotif = async () => {
 const checkUnread_doing = ref(false)
 
 const checkUnread = async () => {
+  if (!notificationsSupported.value) return
   try {
     checkUnread_doing.value = true
     const res: any = await $fetch(siteConfig.value.notifCountApi)
@@ -835,8 +838,8 @@ const syncSiteState = async () => {
 
   try {
     const env: any = await $fetch('/api/env')
-    notificationsEnabled.value = Boolean(env?.[siteConfig.value.hasCookieKey])
-    void checkUnread()
+    notificationsEnabled.value = notificationsSupported.value && Boolean(env?.[siteConfig.value.hasCookieKey])
+    if (notificationsEnabled.value) void checkUnread()
   } catch {
     notificationsEnabled.value = false
   }
@@ -868,7 +871,7 @@ onMounted(async () => {
   if (loaderEl.value) observer.observe(loaderEl.value)
 
   unreadTimer = setInterval(() => {
-    if (notificationsEnabled.value || !checkUnread_doing.value) {
+    if (notificationsEnabled.value && !checkUnread_doing.value) {
       void checkUnread()
     }
   }, 10000)

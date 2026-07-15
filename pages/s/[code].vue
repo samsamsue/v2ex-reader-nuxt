@@ -14,6 +14,7 @@
     :compact-title="false"
     :record-history="false"
     :show-follow="false"
+    :auto-poll-replies="!isLinuxdo"
   />
 </template>
 

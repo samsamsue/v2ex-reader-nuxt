@@ -174,6 +174,7 @@ const props = withDefaults(defineProps<{
   historyPath?: string
   recordHistory?: boolean
   showFollow?: boolean
+  autoPollReplies?: boolean
 }>(), {
   requireAuth: false,
   fromPath: '/v2ex',
@@ -195,7 +196,8 @@ const props = withDefaults(defineProps<{
   historySiteLabel: 'V2EX',
   historyPath: '',
   recordHistory: true,
-  showFollow: true
+  showFollow: true,
+  autoPollReplies: true
 })
 
 const route = useRoute()
@@ -1223,11 +1225,12 @@ const listenVisible = () => {
 }
 
 const listPageShow = (e) => {
-    if ((e as any).persisted) refreshReplies()
+    if (props.autoPollReplies && (e as any).persisted) refreshReplies()
   }
 
 // 轮询新回复
 const poll = async () => {
+    if (!props.autoPollReplies) return
     if (isModeCode.value) {
       clearTimeout(pollTimer)
       pollTimer = setTimeout(poll, 10000)
@@ -1269,7 +1272,7 @@ const init = ()=> {
 	fetchTopic()
 	fetchReplies()
   clearTimeout(pollTimer)
-	pollTimer = setTimeout(poll, 60000)
+  if (props.autoPollReplies) pollTimer = setTimeout(poll, 60000)
   ensureDefaultFavicon()
 }
 

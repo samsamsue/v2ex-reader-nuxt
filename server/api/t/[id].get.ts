@@ -18,7 +18,8 @@ export default defineEventHandler(async (event) => {
 
   try {
     const requestEnv = createRequestEnv(event)
-    const [topicData, replyData] = await Promise.all([fetchTopicById(rawId, requestEnv), fetchRepliesById(rawId, requestEnv)])
+    const topicData = await fetchTopicById(rawId, requestEnv)
+    const replyData = await fetchRepliesById(rawId, requestEnv)
     return { ...topicData, ...replyData, rawId }
   } catch (error) {
     const payload = createUpstreamErrorPayload(error)
