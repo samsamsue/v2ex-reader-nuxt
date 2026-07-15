@@ -1117,10 +1117,11 @@ useHead(() => ({
   padding: 3px 2px;
   line-height: 1;
   border-radius: 999px;
-  background: rgba(127, 127, 127, 0.28);
-  color: var(--text);
+  background: #000;
+  color: #fff;
   font-size: 10px;
-  border: 2px solid var(--bg);
+  font-weight: 700;
+  border: 0;
 }
 
 .list-skeleton {

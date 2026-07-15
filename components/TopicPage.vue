@@ -659,7 +659,7 @@ const ensureRepliesLoadedForFloor = async (floor: number | string) => {
 
   loadingMoreReplies.value = true
   try {
-    await fetchReplies(true, targetPage, false, false)
+    await fetchReplies(true, targetPage, false, false, false)
     ensureReplyVisible(floor)
     await nextTick()
     await refreshCodeHighlighting()
@@ -687,7 +687,7 @@ const loadMoreVisibleReplies = async () => {
 
   loadingMoreReplies.value = true
   try {
-    await fetchReplies(true, Math.max(loadedReplyPages.value + 1, 1), false)
+    await fetchReplies(true, Math.max(loadedReplyPages.value + 1, 1), false, false, false)
     visibleReplyLimit.value = Math.min(visibleReplyLimit.value + OFFICIAL_REPLY_PAGE_SIZE, allIds.value.length)
     await nextTick()
     await refreshCodeHighlighting()
@@ -1080,7 +1080,13 @@ const fetchTopic = async () => {
   }
 }
 
-const fetchReplies = async (silent = false, minPages?: number, resetLimit = true, autoJump = true): Promise<boolean> => {
+const fetchReplies = async (
+  silent = false,
+  minPages?: number,
+  resetLimit = true,
+  autoJump = true,
+  detectNewReplies = silent
+): Promise<boolean> => {
   if (!silent) loadingReplies.value = true
   let hasNewReplies = false
   
@@ -1116,7 +1122,7 @@ const fetchReplies = async (silent = false, minPages?: number, resetLimit = true
     await refreshCodeHighlighting()
     if (autoJump) await jumpToRequestedFloor()
     
-    if (silent && prevIds.length) {
+    if (detectNewReplies && prevIds.length) {
       const newIds = allIds.value.filter((id) => !prevIds.includes(id))
       
       if (newIds.length > 0) {
@@ -1201,30 +1207,16 @@ const listenScroll = () => {
         return
       }
       
-      // 记录当前看过的楼层
+      // Record the bottom-most comment that is currently visible.
       let currentFloor: string | null = null
-      const readingLineY = getReadingLineY()
-      let fallbackFloor: string | null = null
+      const viewportBottom = window.innerHeight
       for (let i = 0; i < comments.length; i++) {
         const comment = comments[i] as HTMLElement
         const rect = comment.getBoundingClientRect()
-        const floorId = comment.id.replace('c_', '')
-
-        if (!fallbackFloor && rect.bottom > TOP_VISIBLE_OFFSET) {
-          fallbackFloor = floorId
-        }
-
-        if (rect.top <= readingLineY && rect.bottom >= readingLineY) {
-          currentFloor = floorId
-          break
-        }
-
-        if (rect.top > readingLineY) {
-          currentFloor = fallbackFloor || floorId
-          break
-        }
+        if (rect.top >= viewportBottom) break
+        if (rect.bottom > TOP_VISIBLE_OFFSET) currentFloor = comment.id.replace('c_', '')
       }
-      if (currentFloor || fallbackFloor) saveFloor(codeParam.value, currentFloor || fallbackFloor!)
+      if (currentFloor) saveFloor(codeParam.value, currentFloor)
     }, 300)
 }
 

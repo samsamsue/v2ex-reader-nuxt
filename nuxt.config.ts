@@ -1,5 +1,5 @@
 import { config } from 'dotenv'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 import { dirname, resolve } from 'path'
 import { existsSync } from 'fs'
 
@@ -12,6 +12,7 @@ if (existsSync(envPath)) {
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   ssr: true,
+  buildDir: process.env.NODE_ENV === 'production' ? '.nuxt-build' : '.nuxt',
   compatibilityDate: '2026-07-09',
   experimental: {
     appManifest: false
@@ -25,6 +26,17 @@ export default defineNuxtConfig({
     plugins: [
       {
         name: 'windows-nuxt-absolute-entry-rewrite',
+        outputOptions(options) {
+          if (process.platform !== 'win32' || process.env.NODE_ENV === 'production') return
+          const existingPaths = options.paths
+          options.paths = (id) => {
+            const mapped = typeof existingPaths === 'function'
+              ? existingPaths(id)
+              : existingPaths?.[id] || id
+            return /^[A-Za-z]:[\\/]/.test(mapped) ? pathToFileURL(mapped).href : mapped
+          }
+          return options
+        },
         configureServer(server) {
           if (process.platform !== 'win32') return
           server.middlewares.use((req, res, next) => {
