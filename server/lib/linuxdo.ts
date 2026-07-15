@@ -298,6 +298,7 @@ async function curlFetchText(pathOrUrl: string, env: SiteEnv, options: { useProx
 export async function safeFetchText(pathOrUrl: string, env: SiteEnv) {
   const useProxy = process.env.LINUXDO_RSS_NO_PROXY !== '1'
   const withCookie = process.env.LINUXDO_RSS_WITH_COOKIE === '1' || Boolean(env.LINUXDO_CF_CLEARANCE)
+  const useCurl = process.env.LINUXDO_RSS_CURL_FALLBACK !== '0'
   const cacheKey = getRssCacheKey(pathOrUrl, env, { useProxy, withCookie })
   const cached = rssTextCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) return cached.text
@@ -306,6 +307,17 @@ export async function safeFetchText(pathOrUrl: string, env: SiteEnv) {
   if (inflight) return await inflight
 
   const request = (async () => {
+    let curlError: unknown = null
+
+    if (useCurl) {
+      try {
+        return await curlFetchText(pathOrUrl, env, { useProxy, withCookie })
+      } catch (error) {
+        curlError = error
+        console.warn(`[linux.do] RSS curl fetch failed for ${pathOrUrl}; falling back to fetch: ${normalizeCurlError(error)}`)
+      }
+    }
+
     try {
       const resp = await safeFetch(pathOrUrl, env, {
         headers: {
@@ -324,7 +336,7 @@ export async function safeFetchText(pathOrUrl: string, env: SiteEnv) {
         return cached.text
       }
 
-      if (process.env.LINUXDO_RSS_CURL_FALLBACK === '1') {
+      if (useCurl && !curlError) {
         try {
           const text = await curlFetchText(pathOrUrl, env, { useProxy, withCookie })
           const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
@@ -373,7 +385,7 @@ export function getLinuxDoDiagnostics(env: SiteEnv = ENV) {
     proxySource: PROXY_CONFIG.source || '',
     rssUsesProxy: process.env.LINUXDO_RSS_NO_PROXY !== '1',
     rssSendsCookie: process.env.LINUXDO_RSS_WITH_COOKIE === '1' || Boolean(env.LINUXDO_CF_CLEARANCE),
-    rssCurlFallback: process.env.LINUXDO_RSS_CURL_FALLBACK === '1',
+    rssCurlFallback: process.env.LINUXDO_RSS_CURL_FALLBACK !== '0',
     hasLinuxDoCookie: Boolean(safeCookie),
     hasCfClearance: /(?:^|;\s*)cf_clearance=/i.test(safeCookie) || Boolean(env.LINUXDO_CF_CLEARANCE),
     hasLinuxDoUserAgent: Boolean(env.LINUXDO_USER_AGENT)
