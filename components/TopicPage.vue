@@ -70,6 +70,7 @@
             rows="4"
             placeholder="Write a reply..."
             @paste="handleReplyPaste"
+            @keydown="handleReplyKeydown"
           ></textarea>
           <div class="reply-tools">
             <button type="button" @click="toggleBase64Tool">Base64</button>
@@ -551,11 +552,45 @@ const getReadingLineY = () => {
   return Math.min(Math.max(window.innerHeight * 0.45, 180), window.innerHeight - 120)
 }
 
-const scrollFloorToReadingLine = (el: HTMLElement) => {
-  window.scrollTo({
-    top: Math.max(0, el.offsetTop - getReadingLineY()),
-    behavior: 'smooth'
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+const waitForImagesBeforeElement = async (el: HTMLElement, timeoutMs = 1800) => {
+  const commentsBox = document.getElementById('comments')
+  if (!commentsBox) return
+
+  const images = Array.from(commentsBox.querySelectorAll<HTMLImageElement>('img')).filter((img) => {
+    if (img.complete) return false
+    return Boolean(img.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)
   })
+  if (!images.length) return
+
+  await Promise.race([
+    Promise.allSettled(images.map((img) => new Promise((resolve) => {
+      img.addEventListener('load', resolve, { once: true })
+      img.addEventListener('error', resolve, { once: true })
+    }))),
+    wait(timeoutMs)
+  ])
+}
+
+const scrollElementWithOffset = async (el: HTMLElement, offset: number, behavior: ScrollBehavior = 'smooth') => {
+  await nextTick()
+  await waitForImagesBeforeElement(el)
+  window.scrollTo({
+    top: Math.max(0, el.offsetTop - offset),
+    behavior
+  })
+
+  for (const delay of [250, 700, 1400]) {
+    window.setTimeout(() => {
+      if (!document.contains(el)) return
+      window.scrollTo({ top: Math.max(0, el.offsetTop - offset), behavior: 'auto' })
+    }, delay)
+  }
+}
+
+const scrollFloorToReadingLine = async (el: HTMLElement) => {
+  await scrollElementWithOffset(el, getReadingLineY())
 }
 
 const checkHistory = () => {
@@ -577,7 +612,7 @@ const jumpToHistory = async () => {
     await ensureRepliesLoadedForFloor(historyFloor.value)
     const el = document.getElementById('c_' + historyFloor.value)
     if (el) {
-      scrollFloorToReadingLine(el)
+      await scrollFloorToReadingLine(el)
       el.classList.remove('flash-highlight')
       void el.offsetWidth
       el.classList.add('flash-highlight')
@@ -608,7 +643,7 @@ const jumpToFloor = (event: Event | null, floor: number | string) => {
   const el = document.getElementById('c_' + floorId)
   if (!el) return false
 
-  window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
+  void scrollElementWithOffset(el, 80)
   el.classList.remove('flash-highlight')
   void el.offsetWidth
   el.classList.add('flash-highlight')
@@ -623,7 +658,7 @@ const getQueryString = (value: unknown) => {
 const normalizeReplyTarget = (value: string) => value.replace(/^#?\/?(?:r_|c_)?/i, '')
 
 const highlightAndScrollToElement = (el: HTMLElement) => {
-  window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' })
+  void scrollElementWithOffset(el, 80)
   el.classList.remove('flash-highlight')
   void el.offsetWidth
   el.classList.add('flash-highlight')
@@ -908,6 +943,12 @@ const handleReplyPaste = async (event: ClipboardEvent) => {
   if (!files.length) return
   event.preventDefault()
   await uploadReplyImages(files)
+}
+
+const handleReplyKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey) || event.shiftKey || event.altKey) return
+  event.preventDefault()
+  void submitReply()
 }
 
 const submitReply = async () => {
