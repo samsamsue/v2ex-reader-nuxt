@@ -2,7 +2,7 @@
   <div>
     <LoginBox v-if="requireAuth && needLogin" :from="fromPath" :title="loginTitle" />
     <template v-else>
-      <div id="mainContent" @click="handleContentClick">
+      <div id="mainContent">
         <div id="newMsgNotify" :class="{ show: notifyVisible }" @click="refreshReplies">
           <svg v-if="loadingReplies" class="loading-rotate" style="width:1rem;height:1rem;"  xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
           检测到新回复
@@ -1236,8 +1236,34 @@ const toggleQr = async () => {
 }
 
 // --- 生命周期 ---
+const registerQuickNavActions = () => {
+  if (typeof window === 'undefined') return
+  if (!quickNavActionActive) return
+  const actions = [
+    ...(props.showOpenOriginal ? [{ id: 'open-original', title: '在原站打开', icon: 'open' }] : []),
+    ...(props.showQr ? [{ id: 'topic-qr', title: '分享二维码', icon: 'qr' }] : []),
+    { id: 'refresh-replies', title: '刷新回复', icon: 'refresh' }
+  ]
+  ;(window as any).__setQuickNavActions?.(actions)
+  window.dispatchEvent(new CustomEvent('quick-nav-actions', { detail: actions }))
+}
+
+const clearQuickNavActions = () => {
+  if (typeof window === 'undefined') return
+  ;(window as any).__setQuickNavActions?.([])
+  window.dispatchEvent(new CustomEvent('quick-nav-actions', { detail: [] }))
+}
+
+const handleQuickNavAction = (event: Event) => {
+  const action = (event as CustomEvent<{ action?: string }>).detail?.action
+  if (action === 'open-original') openOriginal()
+  else if (action === 'topic-qr') void toggleQr()
+  else if (action === 'refresh-replies') void refreshReplies()
+}
+
 let pollTimer: any = null
 let scrollTimer: any = null
+let quickNavActionActive = false
 
 
 
@@ -1304,6 +1330,7 @@ const poll = async () => {
 } 
 
 const cleanup = () => {
+  quickNavActionActive = false
   clearTimeout(pollTimer)
   clearTimeout(scrollTimer)
   pollTimer = null
@@ -1313,16 +1340,23 @@ const cleanup = () => {
   window.removeEventListener('scroll', listenScroll)
   window.removeEventListener('pageshow', listPageShow )
   window.removeEventListener('keydown', listenKeydown)
+  window.removeEventListener('quick-nav-action', handleQuickNavAction as EventListener)
+  clearQuickNavActions()
   stopBlink()
 }
 
 const init = ()=> {
   cleanup()
+  quickNavActionActive = true
 	;(window as any).jumpToFloor = jumpToFloor
 	window.addEventListener('visibilitychange', listenVisible )
 	window.addEventListener('scroll', listenScroll)
 	window.addEventListener('pageshow', listPageShow )
 	window.addEventListener('keydown', listenKeydown)
+	window.addEventListener('quick-nav-action', handleQuickNavAction as EventListener)
+  registerQuickNavActions()
+  window.setTimeout(registerQuickNavActions, 0)
+  window.setTimeout(registerQuickNavActions, 300)
 	checkHistory()
 	fetchTopic()
 	fetchReplies()

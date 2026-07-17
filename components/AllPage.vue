@@ -783,6 +783,32 @@ const scrollTop = () => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+const registerQuickNavActions = () => {
+  if (typeof window === 'undefined') return
+  const actions = [
+    { id: 'list-history', title: '浏览历史', icon: 'history' },
+    { id: 'list-follow', title: '关注列表', icon: 'follow' },
+    { id: 'list-refresh', title: '刷新列表', icon: 'refresh' },
+    ...(notificationsEnabled.value ? [{ id: 'list-notif', title: '消息提醒', icon: 'notif' }] : [])
+  ]
+  ;(window as any).__setQuickNavActions?.(actions)
+  window.dispatchEvent(new CustomEvent('quick-nav-actions', { detail: actions }))
+}
+
+const clearQuickNavActions = () => {
+  if (typeof window === 'undefined') return
+  ;(window as any).__setQuickNavActions?.([])
+  window.dispatchEvent(new CustomEvent('quick-nav-actions', { detail: [] }))
+}
+
+const handleQuickNavAction = (event: Event) => {
+  const action = (event as CustomEvent<{ action?: string }>).detail?.action
+  if (action === 'list-history') openHistory()
+  else if (action === 'list-follow') openFollow()
+  else if (action === 'list-notif') openNotif()
+  else if (action === 'list-refresh') void loadList()
+}
+
 const saveLastViewed = (item: any) => {
   saveListScroll()
   sessionStorage.setItem(siteConfig.value.lastCodeKey, item.code)
@@ -859,6 +885,7 @@ const syncSiteState = async () => {
   } catch {
     notificationsEnabled.value = false
   }
+  registerQuickNavActions()
 
   await loadList()
   checkHighlight()
@@ -869,7 +896,10 @@ watch(activeSite, async () => {
 })
 
 onMounted(async () => {
+  window.addEventListener('quick-nav-action', handleQuickNavAction as EventListener)
   await syncSiteState()
+  registerQuickNavActions()
+  window.setTimeout(registerQuickNavActions, 0)
   await restoreListScroll()
 
   pageShowHandler = (event: PageTransitionEvent) => {
@@ -897,15 +927,20 @@ onActivated(() => {
   if (!process.client) return
   stopBlink()
   refreshFollowItems()
+  registerQuickNavActions()
+  window.setTimeout(registerQuickNavActions, 0)
   void restoreListScroll()
   checkHighlight()
 })
 
 onDeactivated(() => {
   saveListScroll()
+  clearQuickNavActions()
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('quick-nav-action', handleQuickNavAction as EventListener)
+  clearQuickNavActions()
   if (pageShowHandler) {
     window.removeEventListener('pageshow', pageShowHandler)
     pageShowHandler = null
